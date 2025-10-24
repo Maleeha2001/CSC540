@@ -1,0 +1,113 @@
+-- 1. USERS
+INSERT INTO users (email, password_hash, roll_number, is_verified, status)
+VALUES
+('alice@example.com', 'hash1', 'R001', TRUE, 'active'),
+('bob@example.com', 'hash2', 'R002', TRUE, 'active'),
+('charlie@example.com', 'hash3', 'R003', FALSE, 'inactive'),
+('diana@example.com', 'hash4', 'R004', TRUE, 'active'),
+('edward@example.com', 'hash5', 'R005', TRUE, 'banned');
+
+-- 2. TIMEZONES
+INSERT INTO timezones (tz_name, utc_offset, dst_rules)
+VALUES
+('Eastern Standard Time', '-05:00', 'EST/EDT'),
+('Central European Time', '+01:00', 'CET/CEST'),
+('Japan Standard Time', '+09:00', 'No DST');
+
+-- 3. MEDIA FILES
+INSERT INTO media_files (uploader_id, file_path, mime_type, size_bytes, width, height)
+VALUES
+(1, '/uploads/alice_avatar.jpg', 'image/jpeg', 120000, 400, 400),
+(2, '/uploads/bob_avatar.png', 'image/png', 95000, 500, 500),
+(2, '/uploads/bob_post1.jpg', 'image/jpeg', 200000, 1080, 720),
+(4, '/uploads/diana_avatar.jpg', 'image/jpeg', 110000, 400, 400),
+(4, '/uploads/diana_post1.mp4', 'video/mp4', 2500000, NULL, NULL);
+
+-- 4. PROFILES
+INSERT INTO profiles (user_id, display_name, bio, avatar_media_id, location, timezone_id)
+VALUES
+(1, 'AliceWonder', 'Loves tech and travel.', 1, 'New York', 1),
+(2, 'BobbyTech', 'Full stack dev & photographer.', 2, 'Berlin', 2),
+(3, 'Chaz', 'Learning coding slowly.', NULL, 'Tokyo', 3),
+(4, 'DianaD', 'Digital artist & gamer.', 4, 'Toronto', 1);
+
+-- 5. POSTS
+INSERT INTO posts (author_id, title, body, is_published, privacy, unlock_status)
+VALUES
+(1, 'My first post!', 'Hello everyone, excited to join!', TRUE, 'public', 'unlocked'),
+(2, 'Photography tips', 'How to get better low-light shots.', TRUE, 'public', 'unlocked'),
+(4, 'My art process', 'Step-by-step of my latest project.', TRUE, 'followers', 'locked'),
+(1, 'Hidden draft', 'This one is still private.', FALSE, 'private', 'locked');
+
+-- 6. TAGS
+INSERT INTO tags (name)
+VALUES
+('tech'),
+('photography'),
+('art'),
+('tutorial'),
+('travel');
+
+-- 7. POST_MEDIA
+INSERT INTO post_media (post_id, media_id, display_order)
+VALUES
+(1, 1, 1),
+(2, 3, 1),
+(3, 5, 1);
+
+-- 8. POST_TAGS
+INSERT INTO post_tags (post_id, tag_id)
+VALUES
+(1, 1),  -- Alice's first post tagged 'tech'
+(1, 5),  -- Alice's first post tagged 'travel'
+(2, 2),  -- Bob's post tagged 'photography'
+(3, 3),  -- Diana's art post tagged 'art'
+(3, 4);  -- and 'tutorial'
+
+-- 9. COMMENTS
+INSERT INTO comments (post_id, author_id, body)
+VALUES
+(1, 2, 'Welcome Alice!'),
+(1, 4, 'Nice to meet you here!'),
+(2, 1, 'Thanks for the tips!'),
+(3, 2, 'This looks awesome!');
+
+-- 10. LIKES
+INSERT INTO likes (user_id, post_id)
+VALUES
+(2, 1),
+(3, 1),
+(1, 2),
+(4, 2),
+(1, 3);
+
+-- 11. REACTIONS
+INSERT INTO reactions (user_id, post_id, reaction_type)
+VALUES
+(1, 2, 'love'),
+(2, 1, 'like'),
+(3, 1, 'wow'),
+(4, 3, 'fire');
+
+-- 12. FOLLOWERS
+INSERT INTO followers (user_id, followee_id, status)
+VALUES
+(2, 1, 'active'),
+(3, 1, 'active'),
+(1, 2, 'active'),
+(4, 2, 'requested'),
+(1, 4, 'active');
+
+-- 13. NOTIFICATIONS
+INSERT INTO notifications (user_id, actor_user_id, type, target_type, target_id, is_read)
+VALUES
+(1, 2, 'comment', 'post', 1, FALSE),
+(2, 1, 'like', 'post', 2, TRUE),
+(4, 2, 'follow', 'user', 4, FALSE);
+
+-- 14. AUDIT_LOGS
+INSERT INTO audit_logs (user_id, action_type, entity_type, entity_id, meta_json)
+VALUES
+(1, 'LOGIN', 'user', 1, '{"ip":"192.168.1.10"}'),
+(2, 'POST_CREATE', 'post', 2, '{"title":"Photography tips"}'),
+(4, 'FOLLOW_REQUEST', 'user', 2, '{"status":"requested"}');
