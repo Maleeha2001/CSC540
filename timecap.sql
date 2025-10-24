@@ -1,21 +1,21 @@
 
--- ==========================
--- 1. USERS (parent)
--- ==========================
+-- ===================================
+-- 1. USERS
+-- ===================================
 CREATE TABLE users (
     user_id INT AUTO_INCREMENT PRIMARY KEY,
-    email VARCHAR(55) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    roll_number VARCHAR(50) UNIQUE,
+    roll_number VARCHAR(50),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_login_at DATETIME NULL,
     is_verified BOOLEAN DEFAULT FALSE,
     status ENUM('active','inactive','banned') DEFAULT 'active'
 ) ENGINE=InnoDB;
 
--- ==========================
--- 2. TIMEZONES (parent)
--- ==========================
+-- ===================================
+-- 2. TIMEZONES
+-- ===================================
 CREATE TABLE timezones (
     timezone_id INT AUTO_INCREMENT PRIMARY KEY,
     tz_name VARCHAR(100) NOT NULL,
@@ -23,9 +23,9 @@ CREATE TABLE timezones (
     dst_rules VARCHAR(100)
 ) ENGINE=InnoDB;
 
--- ==========================
--- 3. MEDIA FILES (parent)
--- ==========================
+-- ===================================
+-- 3. MEDIA FILES
+-- ===================================
 CREATE TABLE media_files (
     media_id INT AUTO_INCREMENT PRIMARY KEY,
     uploader_id INT NOT NULL,
@@ -39,12 +39,12 @@ CREATE TABLE media_files (
     FOREIGN KEY (uploader_id) REFERENCES users(user_id)
 ) ENGINE=InnoDB;
 
--- ==========================
--- 4. PROFILES (child of USERS & TIMEZONES)
--- ==========================
+-- ===================================
+-- 4. PROFILES
+-- ===================================
 CREATE TABLE profiles (
     profile_id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL UNIQUE,
+    user_id INT NOT NULL,
     display_name VARCHAR(100),
     bio TEXT,
     avatar_media_id INT,
@@ -56,9 +56,9 @@ CREATE TABLE profiles (
     FOREIGN KEY (timezone_id) REFERENCES timezones(timezone_id)
 ) ENGINE=InnoDB;
 
--- ==========================
--- 5. POSTS (child of USERS)
--- ==========================
+-- ===================================
+-- 5. POSTS
+-- ===================================
 CREATE TABLE posts (
     post_id INT AUTO_INCREMENT PRIMARY KEY,
     author_id INT NOT NULL,
@@ -72,41 +72,41 @@ CREATE TABLE posts (
     FOREIGN KEY (author_id) REFERENCES users(user_id)
 ) ENGINE=InnoDB;
 
--- ==========================
--- 6. TAGS (parent)
--- ==========================
+-- ===================================
+-- 6. TAGS
+-- ===================================
 CREATE TABLE tags (
     tag_id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
--- ==========================
--- 7. POST_MEDIA (many-to-many POSTS ↔ MEDIA)
--- ==========================
+-- ===================================
+-- 7. POST_MEDIA
+-- ===================================
 CREATE TABLE post_media (
+    post_media_id INT AUTO_INCREMENT PRIMARY KEY,
     post_id INT NOT NULL,
     media_id INT NOT NULL,
     display_order INT DEFAULT 0,
-    PRIMARY KEY (post_id, media_id),
     FOREIGN KEY (post_id) REFERENCES posts(post_id),
     FOREIGN KEY (media_id) REFERENCES media_files(media_id)
 ) ENGINE=InnoDB;
 
--- ==========================
--- 8. POST_TAGS (many-to-many POSTS ↔ TAGS)
--- ==========================
+-- ===================================
+-- 8. POST_TAGS
+-- ===================================
 CREATE TABLE post_tags (
+    post_tag_id INT AUTO_INCREMENT PRIMARY KEY,
     post_id INT NOT NULL,
     tag_id INT NOT NULL,
-    PRIMARY KEY (post_id, tag_id),
     FOREIGN KEY (post_id) REFERENCES posts(post_id),
     FOREIGN KEY (tag_id) REFERENCES tags(tag_id)
 ) ENGINE=InnoDB;
 
--- ==========================
--- 9. COMMENTS (child of POSTS & USERS)
--- ==========================
+-- ===================================
+-- 9. COMMENTS
+-- ===================================
 CREATE TABLE comments (
     comment_id INT AUTO_INCREMENT PRIMARY KEY,
     post_id INT NOT NULL,
@@ -120,22 +120,21 @@ CREATE TABLE comments (
     FOREIGN KEY (parent_comment_id) REFERENCES comments(comment_id)
 ) ENGINE=InnoDB;
 
--- ==========================
--- 10. LIKES (child of POSTS & USERS)
--- ==========================
+-- ===================================
+-- 10. LIKES
+-- ===================================
 CREATE TABLE likes (
     like_id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     post_id INT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_like (user_id, post_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (post_id) REFERENCES posts(post_id)
 ) ENGINE=InnoDB;
 
--- ==========================
--- 11. REACTIONS (child of POSTS & USERS)
--- ==========================
+-- ===================================
+-- 11. REACTIONS
+-- ===================================
 CREATE TABLE reactions (
     reaction_id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -146,22 +145,22 @@ CREATE TABLE reactions (
     FOREIGN KEY (post_id) REFERENCES posts(post_id)
 ) ENGINE=InnoDB;
 
--- ==========================
--- 12. FOLLOWERS (self-reference USERS)
--- ==========================
+-- ===================================
+-- 12. FOLLOWERS
+-- ===================================
 CREATE TABLE followers (
-    follower_id INT NOT NULL,
+    follower_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
     followee_id INT NOT NULL,
     status ENUM('requested','active','blocked') DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (follower_id, followee_id),
-    FOREIGN KEY (follower_id) REFERENCES users(user_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (followee_id) REFERENCES users(user_id)
 ) ENGINE=InnoDB;
 
--- ==========================
--- 13. NOTIFICATIONS (child of USERS)
--- ==========================
+-- ===================================
+-- 13. NOTIFICATIONS
+-- ===================================
 CREATE TABLE notifications (
     notification_id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -175,9 +174,9 @@ CREATE TABLE notifications (
     FOREIGN KEY (actor_user_id) REFERENCES users(user_id)
 ) ENGINE=InnoDB;
 
--- ==========================
--- 14. AUDIT_LOGS (child of USERS)
--- ==========================
+-- ===================================
+-- 14. AUDIT_LOGS
+-- ===================================
 CREATE TABLE audit_logs (
     audit_id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NULL,
@@ -189,6 +188,6 @@ CREATE TABLE audit_logs (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 ) ENGINE=InnoDB;
 
--- ==========================
--- END OF ERD CREATION SCRIPT
--- ==========================
+-- ===================================
+-- END OF SCRIPT
+-- ===================================
