@@ -24,9 +24,9 @@ $create_stmt = "CREATE DATABASE IF NOT EXISTS login_db";
 
 /* Check if database drop was sucessful */
 if(mysqli_query($db_connection, $create_stmt)) {
-	echo nl2br("Database was successfully created.\r\n");
+        echo nl2br("Database was successfully created.\r\n");
 } else {
-	echo "Error dropping database: " . mysqli_error() . nl2br("\r\n");
+        echo "Error dropping database: " . mysqli_error($db_connection) . nl2br("\r\n");
 }
 $prep_stmt = $db_connection -> prepare($create_stmt);
 $prep_stmt->execute();

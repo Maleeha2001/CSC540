@@ -29,19 +29,19 @@ if (isset($_POST['submit'])) {
     $pass = mysqli_real_escape_string($db_connection, $pass);
 
     // SQL query to fetch information and find match user
-    $select_users = $db_connection->prepare(
+    $select_user = $db_connection->prepare(
       //"SELECT user_id, username, role_id FROM user WHERE username = ? AND password = ? LIMIT 1");
         "SELECT u.user_id, u.role_id, cr.username
          FROM Users u
          JOIN Credentials cr ON u.user_id = cr.user_id
          WHERE cr.username = ? AND cr.password_salted = ? LIMIT 1");
-    $select_users->bind_param("ss", $username, $pass);
-    $select_users->execute();
-    $select_users->bind_result($user_id, $user_role, $username);
-    $select_users->store_result();
+    $select_user->bind_param("ss", $username, $pass);
+    $select_user->execute();
+    $select_user->bind_result($user_id, $user_role, $username);
+    $select_user->store_result();
     //Checking the result of the query for a match and results only found 1 match
-    if($select_users->num_rows == 1) {
-      if($select_users->fetch()) {
+    if($select_user->num_rows == 1) {
+      if($select_user->fetch()) {
 
         session_start(); 
         # This area needs to send users and admins to there own directory
@@ -53,7 +53,7 @@ if (isset($_POST['submit'])) {
         if ($_SESSION['user_role'] == 1) {
           header("location: " . BASE_URL . "/admin");
         } elseif ($_SESSION['user_role'] == 2) {
-          header("location:" . BASE_URL . "/user");
+          header("location:" . BASE_URL . "/user/dashboard.php");
         } elseif ($_SESSION['user_role'] == 3) {
           header("location:" . BASE_URL . "/guest");
         } else {
