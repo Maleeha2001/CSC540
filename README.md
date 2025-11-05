@@ -24,19 +24,17 @@ CSC540 Team Setup Instructions
 
 - git checkout main
 - git pull origin main
-- git checkout <your-branch-name>
+- git checkout your branch
+  - Replace your branch with your branch (xavier or jada).
 - git merge main
-
-
-- Replace <your-branch-name> with your branch (xavier or jada).
 
 4️ Make Changes and Push
 
 - After editing files or adding new ones:
 
-- git add .
-- git commit -m "Brief description of changes"
-- git push origin <your-branch-name>
+  - git add .
+  - git commit -m "Brief description of changes"
+  - git push origin <your-branch-name>
 
 
 - Example:
