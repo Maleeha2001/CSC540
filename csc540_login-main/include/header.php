@@ -22,7 +22,7 @@ if (!isset($_SESSION)) {
           /* Show Home link only when user is NOT logged in */
           if (!isset($_SESSION['user_name'])) {
             echo '<li class="nav-item">';
-            echo '<a class="nav-link active" aria-current="page" href="../">Home</a>';
+            echo '<a class="nav-link active" aria-current="page" href="./home.php">Home</a>';
             echo '</li>';
           }
         ?>

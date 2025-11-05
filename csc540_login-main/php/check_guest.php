@@ -4,7 +4,7 @@
 // CHECK GUEST ROLL
 //======================================================================
 
-if($user_role == 2){
+if($user_role == 3){
   // Everything is working
   // See Console Output
   echo '<script>console.log("Everything is Working");</script>';

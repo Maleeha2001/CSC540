@@ -1,10 +1,10 @@
 <!-- Footer is consistent for all webpages 
 ================================================== -->
-<footer class="footer fixed-bottom">
+<footer class="footer fixed-bottom bg-background-light dark:bg-background-dark font-display " >
   <div class="container py-2">
     <div class="row">
       <div class="col-sm fs-6 text-center">
-        <small>&copy; <?php echo date("Y"); // Shows current year ?> CSC 540 [TEAM MEMBERS HERE] </small>
+        <small>&copy; <?php echo date("Y"); // Shows current year ?> CSC 540 Maleeha, Xavier, and Jada </small>
       </div>
     </div>
   </div>
