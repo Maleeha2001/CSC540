@@ -1,143 +1,190 @@
-
-
--- 1) users
+-- ===================================
+-- 1. USERS (Parent Table)
+-- ===================================
 CREATE TABLE users (
     user_id INT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    last_login_at TIMESTAMP(6) NULL,
+    roll_number VARCHAR(50),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_login_at DATETIME NULL,
     is_verified BOOLEAN DEFAULT FALSE,
     status ENUM('active','inactive','banned') DEFAULT 'active'
 ) ENGINE=InnoDB;
 
--- 2) profiles : 1:1 with users (user_id is the PK here, so no alternates)
+-- ===================================
+-- 2. TIMEZONES (Parent Table)
+-- ===================================
+CREATE TABLE timezones (
+    timezone_id INT AUTO_INCREMENT PRIMARY KEY,
+    tz_name VARCHAR(100) NOT NULL,
+    utc_offset VARCHAR(10),
+    dst_rules VARCHAR(100)
+) ENGINE=InnoDB;
+
+-- ===================================
+-- 3. MEDIA FILES
+-- ===================================
+CREATE TABLE media_files (
+    media_id INT AUTO_INCREMENT PRIMARY KEY,
+    uploader_id INT NOT NULL,
+    file_path VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(100),
+    size_bytes INT,
+    width INT,
+    height INT,
+    duration INT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (uploader_id) REFERENCES users(user_id)
+) ENGINE=InnoDB;
+
+-- ===================================
+-- 4. PROFILES
+-- ===================================
 CREATE TABLE profiles (
-    user_id INT PRIMARY KEY,          -- enforces 1:1 by making FK the PK
+    profile_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
     display_name VARCHAR(100),
     bio TEXT,
-    avatar_media_id INT NULL,
+    avatar_media_id INT,
     is_public BOOLEAN DEFAULT TRUE,
     location VARCHAR(100),
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    timezone_id INT,
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (avatar_media_id) REFERENCES media_files(media_id),
+    FOREIGN KEY (timezone_id) REFERENCES timezones(timezone_id)
+) ENGINE=InnoDB;
+
+-- ===================================
+-- 5. POSTS
+-- ===================================
+CREATE TABLE posts (
+    post_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    title VARCHAR(255),
+    caption TEXT,
+    privacy ENUM('public', 'private') NOT NULL DEFAULT 'public',
+    unlock_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    has_media BOOLEAN NOT NULL DEFAULT FALSE,
+    searchable_after_unlock BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE posts (
-    post_id INT AUTO_INCREMENT PRIMARY KEY,
-    author_id INT NOT NULL,
-    title VARCHAR(255),
-    body TEXT,
-    post_type ENUM('text','image','video','audio','link') NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    updated_at TIMESTAMP(6) NULL,
-    is_deleted BOOLEAN DEFAULT FALSE,    -- soft delete flag
-    is_published BOOLEAN DEFAULT FALSE,
-    privacy ENUM('public','followers','private') DEFAULT 'public',
-    FOREIGN KEY (author_id) REFERENCES users(user_id) ON DELETE RESTRICT
+-- ===================================
+-- 6. TAGS
+-- ===================================
+CREATE TABLE tags (
+    tag_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
-CREATE TABLE timers (
-    post_id INT PRIMARY KEY,                  -- PK and FK: 1:1 relationship
-    scheduled_unlock_at TIMESTAMP(6) NOT NULL,
-    opened_at TIMESTAMP(6) NULL,
-    status ENUM('scheduled','opened','cancelled') NOT NULL DEFAULT 'scheduled',
-    is_searchable_before_open BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    FOREIGN KEY (post_id) REFERENCES posts(post_id) ON DELETE RESTRICT
+-- ===================================
+-- 7. POST_MEDIA
+-- ===================================
+CREATE TABLE post_media (
+    post_media_id INT AUTO_INCREMENT PRIMARY KEY,
+    post_id INT NOT NULL,
+    media_id INT NOT NULL,
+    display_order INT DEFAULT 0,
+    FOREIGN KEY (post_id) REFERENCES posts(post_id),
+    FOREIGN KEY (media_id) REFERENCES media_files(media_id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE time_zones (
-    timezone_id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,            -- e.g. 'America/New_York'
-    utc_offset_minutes INT NOT NULL,       -- stored as minutes, e.g. -300, 0, 330
-    observes_dst BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+-- ===================================
+-- 8. POST_TAGS
+-- ===================================
+CREATE TABLE post_tags (
+    post_id INT NOT NULL,
+    tag_id INT NOT NULL,
+    PRIMARY KEY (post_id, tag_id),
+    FOREIGN KEY (post_id) REFERENCES posts(post_id),
+    FOREIGN KEY (tag_id) REFERENCES tags(tag_id)
 ) ENGINE=InnoDB;
 
+-- ===================================
+-- 9. COMMENTS
+-- ===================================
 CREATE TABLE comments (
     comment_id INT AUTO_INCREMENT PRIMARY KEY,
     post_id INT NOT NULL,
     author_id INT NOT NULL,
     parent_comment_id INT NULL,
     body TEXT NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_deleted BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (post_id) REFERENCES posts(post_id) ON DELETE RESTRICT,
-    FOREIGN KEY (author_id) REFERENCES users(user_id) ON DELETE RESTRICT,
-    FOREIGN KEY (parent_comment_id) REFERENCES comments(comment_id) ON DELETE SET NULL
-) ENGINE=InnoDB;
-
--- 6) reactions : reactions only on posts; app enforces one reaction per user/post if desired
-CREATE TABLE reactions (
-    reaction_id INT AUTO_INCREMENT PRIMARY KEY,
-    post_id INT NOT NULL,
-    user_id INT NOT NULL,
-    reaction_type ENUM('like','love','laugh') NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    FOREIGN KEY (post_id) REFERENCES posts(post_id) ON DELETE RESTRICT,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE RESTRICT
-) ENGINE=InnoDB;
-
--- 7) saved_posts : bookmarks (separate from reactions)
-CREATE TABLE saved_posts (
-    save_id INT AUTO_INCREMENT PRIMARY KEY,
-    post_id INT NOT NULL,
-    user_id INT NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    FOREIGN KEY (post_id) REFERENCES posts(post_id) ON DELETE RESTRICT,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE RESTRICT
-) ENGINE=InnoDB;
-
--- 8) followers : simple follow model (one table)
-CREATE TABLE followers (
-    follower_record_id INT AUTO_INCREMENT PRIMARY KEY,
-    follower_user_id INT NOT NULL,
-    followee_user_id INT NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    FOREIGN KEY (follower_user_id) REFERENCES users(user_id) ON DELETE RESTRICT,
-    FOREIGN KEY (followee_user_id) REFERENCES users(user_id) ON DELETE RESTRICT
-) ENGINE=InnoDB;
-
--- 9) media_files : store uploaded file metadata
-CREATE TABLE media_files (
-    media_id INT AUTO_INCREMENT PRIMARY KEY,
-    uploader_id INT NULL,
-    file_path VARCHAR(1024) NOT NULL,
-    mime_type VARCHAR(100),
-    size_bytes BIGINT,
-    width INT,
-    height INT,
-    duration INT,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    FOREIGN KEY (uploader_id) REFERENCES users(user_id) ON DELETE SET NULL
-) ENGINE=InnoDB;
-
--- 10) post_media : link media files to posts (many-to-many)
-CREATE TABLE post_media (
-    post_media_id INT AUTO_INCREMENT PRIMARY KEY,
-    post_id INT NOT NULL,
-    media_id INT NOT NULL,
-    position INT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     FOREIGN KEY (post_id) REFERENCES posts(post_id),
-    FOREIGN KEY (media_id) REFERENCES media_files(media_id) ON DELETE RESTRICT
+    FOREIGN KEY (author_id) REFERENCES users(user_id),
+    FOREIGN KEY (parent_comment_id) REFERENCES comments(comment_id)
 ) ENGINE=InnoDB;
 
--- 11) tags : tag dictionary
-CREATE TABLE tags (
-    tag_id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
-) ENGINE=InnoDB;
-
--- 12) post_tags : many-to-many linking posts to tags
-CREATE TABLE post_tags (
-    post_tag_id INT AUTO_INCREMENT PRIMARY KEY,
+-- ===================================
+-- 10. REACTIONS
+-- ===================================
+CREATE TABLE reactions (
+    user_id INT NOT NULL,
     post_id INT NOT NULL,
-    tag_id INT NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    FOREIGN KEY (post_id) REFERENCES posts(post_id) ON DELETE RESTRICT,
-    FOREIGN KEY (tag_id) REFERENCES tags(tag_id) ON DELETE RESTRICT
+    reaction_type ENUM('like','love','laugh','angry','sad') NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, post_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (post_id) REFERENCES posts(post_id)
 ) ENGINE=InnoDB;
 
+-- ===================================
+-- 11. FOLLOWERS
+-- ===================================
+CREATE TABLE followers (
+    user_id INT NOT NULL,
+    followee_id INT NOT NULL,
+    status ENUM('requested','active','blocked') DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, followee_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (followee_id) REFERENCES users(user_id)
+) ENGINE=InnoDB;
+
+-- ===================================
+-- 12. NOTIFICATIONS
+-- ===================================
+CREATE TABLE notifications (
+    notification_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    actor_user_id INT NULL,
+    type VARCHAR(100),
+    target_type VARCHAR(50),
+    target_id INT,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (actor_user_id) REFERENCES users(user_id)
+) ENGINE=InnoDB;
+
+-- ===================================
+-- 13. AUDIT_LOGS
+-- ===================================
+CREATE TABLE audit_logs (
+    audit_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NULL,
+    action_type VARCHAR(100),
+    entity_type VARCHAR(50),
+    entity_id INT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    meta_json JSON,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+) ENGINE=InnoDB;
+
+-- ===================================
+-- 14. POST_TIMERS
+-- ===================================
+CREATE TABLE post_timers (
+    timer_id INT AUTO_INCREMENT PRIMARY KEY,
+    post_id INT NOT NULL,
+    unlock_at DATETIME NOT NULL,
+    timezone_id INT NOT NULL,
+    status ENUM('scheduled','unlocked','expired') DEFAULT 'scheduled',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES posts(post_id),
+    FOREIGN KEY (timezone_id) REFERENCES timezones(timezone_id)
+) ENGINE=InnoDB;
