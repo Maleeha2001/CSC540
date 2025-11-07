@@ -53,7 +53,7 @@ if (isset($_POST['submit'])) {
         if ($_SESSION['user_role'] == 1) {
           header("location: " . BASE_URL . "/admin");
         } elseif ($_SESSION['user_role'] == 2) {
-          header("location:" . BASE_URL . "/user/dashboard.php");
+          header("location:" . BASE_URL . "/user/feed.php");
         } elseif ($_SESSION['user_role'] == 3) {
           header("location:" . BASE_URL . "/guest");
         } else {

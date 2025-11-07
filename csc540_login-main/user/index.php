@@ -36,7 +36,7 @@ ini_set('display_errors', 0); // set to 1 to display errors, 0 to hide them
   // Check user and get roll session from database
 
   /* Page Name */
-  $page_name = "admin";
+  $page_name = "user";
 
 ?>
 <!doctype html>
