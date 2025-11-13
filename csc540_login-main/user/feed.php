@@ -11,6 +11,10 @@
 
   /* Start The Session */
   session_start(); 
+  /* Access Control: Only for logged in users with role 'user' (role_id = 2) */
+  if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] != 2) {
+    header("Location: ../index.php");
+    exit();}
 
 ?>
 <!DOCTYPE html>

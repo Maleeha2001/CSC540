@@ -10,6 +10,11 @@
 
   /* Start The Session */
   session_start(); 
+  
+  if (!isset($_SESSION['login_user'])) {
+    header("Location: http://localhost/csc540_login-main/index.php");
+    exit();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
@@ -28,61 +33,66 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
 
     <style>
-      :root {
-        --primary-color: #13a4ec;
-        --background-light: #f6f7f8;
-        --background-dark: #101c22;
-        --text-light: #ffffff;
-        --text-dark: #0f172a;
-        --font-display: "Plus Jakarta Sans", "Noto Sans", sans-serif;
-      }
+          :root {
+      --primary-color: #13a4ec;
+      --background-light: #f6f7f8;
+      --background-dark: #101c22;
+      --text-light: #ffffff;
+      --text-dark: #0f172a;
+      --font-display: "Plus Jakarta Sans", "Noto Sans", sans-serif;
+    }
 
-      body {
-        font-family: var(--font-display);
-        background-color: var(--background-dark);
-        color: var(--text-light);
-        min-height: 100vh;
-      }
+    body {
+      font-family: var(--font-display);
+      background-color: var(--background-light);
+      color: var(--text-dark);
+      min-height: 100vh;
+    }
 
+    [data-bs-theme="dark"] body {
+      background-color: var(--background-dark);
+      color: var(--text-light);
+    }
 
-      .btn-primary {
-        background-color: var(--primary-color);
-        border-color: var(--primary-color);
-      }
+    .navbar {
+      background-color: rgba(16, 28, 34, 0.8);
+      backdrop-filter: blur(8px);
+    }
 
-      .btn-primary:hover {
-        background-color: #0e8ecf;
-        border-color: #0e8ecf;
-      }
+    .btn-primary {
+      background-color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
 
-      .card, .capsule-card {
-        background-color: rgba(255, 255, 255, 0.1);
-        border: none;
-        border-radius: 1rem;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        color: var(--text-light);
-      }
+    .btn-primary:hover {
+      background-color: #0e8ecf;
+      border-color: #0e8ecf;
+    }
 
-      .material-symbols-outlined {
-        vertical-align: middle;
-      }
+    .card .capsule-card{
+      background-color: rgba(255, 255, 255, 0.1);
+      border: none;
+      border-radius: 1rem;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
 
+    .material-symbols-outlined {
+      vertical-align: middle;
+    }
+    .tab-nav a {
+      font-weight: 700;
+      border-bottom: 3px solid transparent;
+      color: rgba(255,255,255,0.7);
+      padding: 0.75rem 0;
+      display: inline-block;
+      margin-right: 2rem;
+      text-decoration: none;
+    }
 
-
-      .tab-nav a {
-        font-weight: 700;
-        border-bottom: 3px solid transparent;
-        color: rgba(255,255,255,0.7);
-        padding: 0.75rem 0;
-        display: inline-block;
-        margin-right: 2rem;
-        text-decoration: none;
-      }
-
-      .tab-nav a.active {
-        border-color: var(--primary-color);
-        color: var(--primary-color);
-      }
+    .tab-nav a.active {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
     </style>
   </head>
 

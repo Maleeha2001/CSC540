@@ -69,7 +69,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             //$hashed_password = password_hash($password, PASSWORD_DEFAULT);
             $password_salted = crypt($password, $salt);
             $insert_credential = $db_connection->prepare("INSERT INTO Credentials (user_id, username, password_salted) VALUES (?, ?, ?)");
-            $insert_credential->bind_param("iss", $user_id, $username, $password);
+            $insert_credential->bind_param("iss", $user_id, $username, $password_salted);
 
             if ($insert_credential->execute()) {
                 $insert_credential->close();
