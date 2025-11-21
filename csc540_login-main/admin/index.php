@@ -56,36 +56,39 @@ ini_set('display_errors', 0); // set to 1 to display errors, 0 to hide them
     <?php
       include_once (ROOT_PATH . '/php/config.php');
 
-      $result = $db_connection->query(
-        "SELECT 
-            u.user_id,
-            c.first_name,
-            c.last_name,
-            c.email,
-            cr.username,
-            r.role_type
-        FROM Users u
-        INNER JOIN Contacts c ON u.contact_id = c.contact_id
-        INNER JOIN Credentials cr ON u.user_id = cr.user_id
-        INNER JOIN Roles r ON u.role_id = r.role_id
-        ORDER BY u.user_id ASC");
+     $result = $db_connection->query("
+    SELECT 
+        u.user_id,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.username,
+        r.role_type
+    FROM users u
+    INNER JOIN roles r 
+        ON u.role_id = r.role_id
+    ORDER BY u.user_id ASC
+");
 
-      if ($result->num_rows > 0) {
-        // output data of each row
-        while($row = $result->fetch_assoc()) {
-          echo "<tr>";
-          echo "<th scope='row'>" . $row["user_id"] . "</th>";
-          echo "<td>" . htmlspecialchars($row["first_name"]) . "</td>";
-          echo "<td>" . htmlspecialchars($row["last_name"]) . "</td>";
-          echo "<td>" . htmlspecialchars($row["email"]) . "</td>";
-          echo "<td>" . htmlspecialchars($row["username"]) . "</td>";
-          echo "<td>" . htmlspecialchars($row["role_type"]) . "</td>";
-          echo "</tr>";
-        }
-      } else {
-        echo "<tr><td colspan='6'>No users found</td></tr>";
-      }
-      $db_connection->close();
+
+     if ($result->num_rows > 0) {
+    // output data of each row
+    while($row = $result->fetch_assoc()) {
+        echo "<tr>";
+        echo "<th scope='row'>" . $row["user_id"] . "</th>";
+        echo "<td>" . htmlspecialchars($row["first_name"]) . "</td>";
+        echo "<td>" . htmlspecialchars($row["last_name"]) . "</td>";
+        echo "<td>" . htmlspecialchars($row["email"]) . "</td>";
+        echo "<td>" . htmlspecialchars($row["username"]) . "</td>";
+        echo "<td>" . htmlspecialchars($row["role_type"]) . "</td>";
+        echo "</tr>";
+    }
+} else {
+    echo "<tr><td colspan='6'>No users found</td></tr>";
+}
+
+$db_connection->close();
+
     ?>
 
   </tbody>

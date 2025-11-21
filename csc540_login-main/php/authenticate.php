@@ -26,23 +26,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = stripslashes($username);
     $username = mysqli_real_escape_string($db_connection, $username);
 
-    // Fetch user details including hash
-   $check_user = $db_connection->prepare("
-    SELECT user_id, password 
-    FROM users
-    WHERE username = ?
-");
+    // Fetch user details including role and password hash
+    $check_user = $db_connection->prepare("
+        SELECT user_id, username, password_hash, role_id
+        FROM users
+        WHERE username = ?
+    ");
 
-    $select_users->bind_param("s", $username);
-    $select_users->execute();
-    $select_users->bind_result($user_id, $user_role, $db_username, $db_password_hash);
-    $select_users->store_result();
+    // Bind parameter
+    $check_user->bind_param("s", $username);
+    $check_user->execute();
+    $check_user->store_result();
 
-    if ($select_users->num_rows === 1 && $select_users->fetch()) {
-        
-        // Verify password with hash
+    // Bind results
+    $check_user->bind_result($user_id, $db_username, $db_password_hash, $user_role);
+
+    if ($check_user->num_rows === 1 && $check_user->fetch()) {
+
+        // Verify password
         if (password_verify($password, $db_password_hash)) {
 
+            // Set session variables
             $_SESSION['user_id'] = $user_id;
             $_SESSION['login_user'] = $db_username;
             $_SESSION['user_role'] = $user_role;
@@ -55,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($user_role == 3) {
                 header("location: " . BASE_URL . "/guest");
             } else {
-                $_SESSION['error'] = "Login Failed";
+                $_SESSION['message'] = "Invalid user role!";
                 header("location: " . SRC_PATH . "/home.php");
             }
             exit();
@@ -70,8 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 
-    // close connection
-    $select_users->close();
+    $check_user->close();
 } else {
     header("location: " . SRC_PATH . "/logout.php");
     exit();
