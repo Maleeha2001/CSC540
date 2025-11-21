@@ -12,24 +12,22 @@
   $user_check = $_SESSION['login_user'];
   // Check user and get roll session from database
 
-  $select_user = $db_connection->prepare(
+  $check_users = $db_connection->prepare(
     /* Need to update this section FROM table */
     //"SELECT user_id,username,role_id FROM user WHERE username = ?"
     "SELECT 
         u.user_id,
         u.role_id,
-        c.first_name,
-        cr.username,
+        u.first_name,
+        u.username,
         r.role_type
     FROM Users u
-    INNER JOIN Contacts c ON u.contact_id = c.contact_id
-    INNER JOIN Credentials cr ON u.user_id = cr.user_id
-    INNER JOIN Roles r ON u.role_id = r.role_id
-    WHERE cr.username = ?");
-  $select_user->bind_param("s", $user_check);
-  $select_user->execute();
-  $select_user->bind_result($user_id, $user_role, $first_name, $username, $user_type);
-  $select_user->fetch();
+    INNER JOIN roles r ON u.role_id = r.role_id
+    WHERE u.username = ?");
+  $check_users->bind_param("s", $user_check);
+  $check_users->execute();
+  $check_users->bind_result($user_id, $user_role, $first_name, $username, $user_type);
+  $check_users->fetch();
 
   # session information
   $_SESSION['user_id'] = $user_id;
@@ -52,7 +50,7 @@
     header("location: " . BASE_URL . "failed.html");
   }
 
-  $select_user->close();
+  $check_users->close();
   // Close the mysql connection
   //mysqli_close($db_connection); 
 
