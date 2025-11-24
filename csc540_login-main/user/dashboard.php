@@ -15,6 +15,12 @@ $page_name = "dashboard";
 //   exit();
 
 include_once "../php/session.php";
+
+$tab = strtolower($_GET['tab'] ?? 'locked');
+$allowed_tabs = ['locked', 'unlocked'];
+if (!in_array($tab, $allowed_tabs, true)) {
+  $tab = 'locked';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
@@ -170,8 +176,8 @@ include_once "../php/session.php";
 
       <!-- Tabs -->
       <div class="px-4 border-bottom border-secondary tab-nav mt-3">
-        <a href="#" class="active">Locked</a>
-        <a href="#">Unlocked</a>
+        <a href="?tab=locked" class="<?php echo $tab === 'locked' ? 'active' : ''; ?>">Locked</a>
+        <a href="?tab=unlocked" class="<?php echo $tab === 'unlocked' ? 'active' : ''; ?>">Unlocked</a>
       </div>
 
       <!-- Controls -->
@@ -197,7 +203,8 @@ include_once "../php/session.php";
         <div class="row g-4">
           <?php
 // Fetch user’s capsules from database
-$stmt = $db_connection->prepare("
+$whereClause = $tab === 'locked' ? 'p.unlock_at > NOW()' : 'p.unlock_at <= NOW()';
+$sql = "
     SELECT 
         p.post_id,
         p.title,
@@ -208,13 +215,21 @@ $stmt = $db_connection->prepare("
         pt.status
     FROM posts p
     LEFT JOIN post_timers pt ON p.post_id = pt.post_id
-    WHERE p.user_id = ?
+    WHERE p.user_id = ? AND $whereClause
     ORDER BY p.unlock_at ASC
-");
+";
+$stmt = $db_connection->prepare($sql);
 $stmt->bind_param("i", $_SESSION['user_id']);
 $stmt->execute();
 $result = $stmt->get_result();
 
+if ($result->num_rows === 0):
+    $emptyMessage = $tab === 'locked' ? 'No locked capsules right now.' : 'No unlocked capsules yet.';
+?>
+<div class="col-12 text-center text-secondary py-5">
+    <?php echo $emptyMessage; ?>
+</div>
+<?php else:
 while ($row = $result->fetch_assoc()):
     $unlock_at = new DateTime($row['unlock_at']);
     $now = new DateTime();
@@ -264,6 +279,7 @@ while ($row = $result->fetch_assoc()):
 </div>
 
 <?php endwhile; ?>
+<?php endif; ?>
 
           <!-- Card 1 -->
           <div class="col-md-6 col-xl-3">

@@ -21,7 +21,7 @@
         u.first_name,
         u.username,
         r.role_type
-    FROM Users u
+    FROM users u
     INNER JOIN roles r ON u.role_id = r.role_id
     WHERE u.username = ?");
   $check_users->bind_param("s", $user_check);

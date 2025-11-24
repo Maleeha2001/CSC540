@@ -84,7 +84,7 @@ ini_set('display_errors', 0); // set to 1 to display errors, 0 to hide them
             c.email,
             cr.username,
             r.role_type
-        FROM Users u
+        FROM users u
         INNER JOIN Contacts c ON u.contact_id = c.contact_id
         INNER JOIN Credentials cr ON u.user_id = cr.user_id
         INNER JOIN Roles r ON u.role_id = r.role_id
@@ -122,4 +122,3 @@ ini_set('display_errors', 0); // set to 1 to display errors, 0 to hide them
     <?php include_once (ROOT_PATH . '/include/footer.php'); ?>
   </body>
 </html>
-

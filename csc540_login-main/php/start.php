@@ -91,7 +91,7 @@ $create_contacts->close();
 
 /* Users */
 $create_users = $db_connection->prepare(
-	"CREATE OR REPLACE TABLE Users(
+	"CREATE OR REPLACE TABLE users(
         user_id int NOT NULL AUTO_INCREMENT,
         role_id int NOT NULL,
         contact_id int NOT NULL,
@@ -109,7 +109,7 @@ $create_credentials = $db_connection->prepare(
 	    user_id int NOT NULL,
         password_salted varchar(255) NOT NULL,
 	    PRIMARY KEY(username),
-        FOREIGN KEY(user_id) REFERENCES Users(user_id));");
+        FOREIGN KEY(user_id) REFERENCES users(user_id));");
 $create_credentials->execute();
 $create_credentials->close();
 
@@ -189,7 +189,7 @@ $insert_contacts->close();
 
 /* Users */
 $insert_users = $db_connection->prepare(
-	"INSERT INTO Users
+	"INSERT INTO users
 		(user_id, role_id, contact_id, creation_date) VALUES(?,?,?,?);");
 $insert_users->bind_param("iiis", $user_id, $role_id, $contact_id, $creation_date);
 $user_id = 1;
