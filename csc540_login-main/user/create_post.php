@@ -106,8 +106,22 @@ include_once "../php/session.php";
         </div>
       </header>
 
+<?php
+// Fetch timezones for dropdown
+$tz_query = $db_connection->query("SELECT timezone_id, tz_name, utc_offset FROM timezones ORDER BY tz_name ASC");
+?>
 
             <form action="./capsules/create.php" method="POST" enctype="multipart/form-data">
+<div class="mb-3">
+    <label for="timezone_id" class="form-label">Timezone</label>
+    <select name="timezone_id" id="timezone_id" class="form-control" required>
+        <?php while ($row = $tz_query->fetch_assoc()): ?>
+            <option value="<?= $row['timezone_id']; ?>">
+                <?= $row['tz_name']; ?> (UTC<?= $row['utc_offset']; ?>)
+            </option>
+        <?php endwhile; ?>
+    </select>
+</div>
 
                 <div class="row g-4">
 
@@ -147,10 +161,11 @@ include_once "../php/session.php";
                             <h5 class="fw-bold mb-3">Set Unlock Date</h5>
 
                             <label class="form-label">Date</label>
-                            <input type="date" name="unlock_date" class="form-control mb-3" required>
+                            <input type="text" id="unlock_date" name="unlock_date" class="form-control mb-3" required>
 
                             <label class="form-label">Time</label>
-                            <input type="time" name="unlock_time" class="form-control" required>
+                            <input type="text" id="unlock_time" name="unlock_time" class="form-control" required>
+
                         </div>
 
                     </div>
@@ -180,6 +195,30 @@ include_once "../php/session.php";
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Flatpickr CSS & JS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<script>
+    // Date Picker (Shows MM/DD/YYYY but submits YYYY-MM-DD)
+    flatpickr("#unlock_date", {
+        altInput: true,
+        altFormat: "m/d/Y",     // User sees (12/03/2025)
+        dateFormat: "Y-m-d",    // PHP/MySQL receives (2025-12-03)
+        minDate: "today",
+    });
+
+    // Time Picker
+    flatpickr("#unlock_time", {
+        enableTime: true,
+        noCalendar: true,
+        altInput: true,
+        altFormat: "h:i K",     // Shows user-friendly 08:30 PM
+        dateFormat: "H:i:S",    // Submits 20:30:00 to MySQL
+        time_24hr: false,       // Change to true if you prefer 24hr format
+    });
+</script>
+
 </body>
 
 </html>

@@ -1,90 +1,101 @@
-<!-- <?php
-// require("../../include/session_helper.php");
-// require("../../include/db_connection.php");
+<?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-// if (!isset($_SESSION['user_id'])) {
-//     die("Not authenticated.");
-// }
+require_once(realpath(dirname(__FILE__) . '/../../php/session.php'));
+require_once(realpath(dirname(__FILE__) . '/../../php/config.php'));
+require_once(realpath(dirname(__FILE__) . '/../../php/path.php'));
 
-// if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-//     die("Invalid request.");
-// }
+if (!isset($_SESSION['user_id'])) {
+    die("Not authenticated.");
+}
 
-// $user = (int)$_SESSION['user_id'];
-// $title = trim($_POST['title'] ?? '');
-// $message = trim($_POST['message'] ?? '');
-// $tags = trim($_POST['tags'] ?? '');
-// $date = trim($_POST['unlock_date'] ?? '');
-// $time = trim($_POST['unlock_time'] ?? '');
-// $unlock_datetime = null;
-// $media_path = null;
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    die("Invalid request.");
+}
 
-// // Basic validation
-// if ($title === '' || $message === '' || $date === '' || $time === '') {
-//     die("Missing required fields.");
-// }
+$user = (int)$_SESSION['user_id'];
+$title = trim($_POST['title'] ?? '');
+$message = trim($_POST['message'] ?? '');
+$tags = trim($_POST['tags'] ?? '');
+$date = trim($_POST['unlock_date'] ?? '');
+$time = trim($_POST['unlock_time'] ?? '');
+$timezone_id = trim($_POST['timezone_id'] ?? '1');
+$media_path = null;
 
-// // Validate/format datetime (expects YYYY-MM-DD and HH:MM or HH:MM:SS)
-// $dt = date_create_from_format('Y-m-d H:i', $date . ' ' . $time) ?: date_create_from_format('Y-m-d H:i:s', $date . ' ' . $time);
-// if ($dt === false) {
-//     die("Invalid date/time format.");
-// }
-// $unlock_datetime = $dt->format('Y-m-d H:i:s');
+// Basic validation
+if ($title === '' || $message === '' || $date === '' || $time === '') {
+    die("Missing required fields.");
+}
 
-// // Handle file upload (optional) with checks
-// if (!empty($_FILES['media']['name']) && is_uploaded_file($_FILES['media']['tmp_name'])) {
-//     $maxSize = 5 * 1024 * 1024; // 5 MB
-//     if ($_FILES['media']['size'] > $maxSize) {
-//         die("Uploaded file is too large.");
-//     }
+// Convert date + time into DATETIME format
+$dt = date_create_from_format('Y-m-d H:i', "$date $time") ?: 
+      date_create_from_format('Y-m-d H:i:s', "$date $time");
+if ($dt === false) {
+    die("Invalid date/time format.");
+}
+$unlock_datetime = $dt->format('Y-m-d H:i:s');
 
-//     // Validate MIME using finfo
-//     $finfo = new finfo(FILEINFO_MIME_TYPE);
-//     $mime = $finfo->file($_FILES['media']['tmp_name']);
-//     $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'video/mp4' => 'mp4'];
-//     if (!isset($allowed[$mime])) {
-//         die("Unsupported file type.");
-//     }
+// Handle optional media upload
+if (!empty($_FILES['media']['name']) && is_uploaded_file($_FILES['media']['tmp_name'])) {
 
-//     // safe filename
-//     $ext = $allowed[$mime];
-//     $upload_dir = __DIR__ . "/../../uploads/";
-//     if (!is_dir($upload_dir)) {
-//         mkdir($upload_dir, 0777, true);
-//     }
+    $maxSize = 5 * 1024 * 1024; // 5 MB
+    if ($_FILES['media']['size'] > $maxSize) {
+        die("Uploaded file is too large.");
+    }
 
-//     $file_name = time() . "_" . bin2hex(random_bytes(6)) . "." . $ext;
-//     $target_path = $upload_dir . $file_name;
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = $finfo->file($_FILES['media']['tmp_name']);
+    $allowed = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/gif' => 'gif',
+        'video/mp4' => 'mp4'
+    ];
+    if (!isset($allowed[$mime])) {
+        die("Unsupported file type.");
+    }
 
-//     if (!move_uploaded_file($_FILES['media']['tmp_name'], $target_path)) {
-//         die("Failed to move uploaded file.");
-//     }
+    $ext = $allowed[$mime];
+    $upload_dir = ROOT_PATH . "/uploads/";
+    if (!is_dir($upload_dir)) {
+        mkdir($upload_dir, 0777, true);
+    }
 
-//     // store relative path used by your app
-//     $media_path = "uploads/" . $file_name;
-// }
+    $file_name = time() . "_" . bin2hex(random_bytes(6)) . ".$ext";
+    $target_path = $upload_dir . $file_name;
 
-// // Insert including media_path column
-// $stmt = $db_connection->prepare(
-//     "INSERT INTO CapsulesTESTING (user_id, title, message, tags, unlock_date, media_path, status)
-//      VALUES (?, ?, ?, ?, ?, ?, 'locked')"
-// );
-// if (!$stmt) {
-//     die("Prepare failed: " . $db_connection->error);
-// }
+    if (!move_uploaded_file($_FILES['media']['tmp_name'], $target_path)) {
+        die("Failed to move uploaded file.");
+    }
 
-// // types: i (user_id) + 5 strings
-// $stmt->bind_param("isssss", $user, $title, $message, $tags, $unlock_datetime, $media_path);
+    $media_path = "uploads/" . $file_name;
+}
 
-// if ($stmt->execute()) {
-//     $stmt->close();
-//     $db_connection->close();
-//     header("Location: ../dashboard.php");
-//     exit();
-// } else {
-//     $err = $stmt->error;
-//     $stmt->close();
-//     $db_connection->close();
-//     die("Database Error: " . $err);
-// }
-?> -->
+// Insert into posts table
+$stmt1 = $db_connection->prepare("
+    INSERT INTO posts (user_id, title, caption, unlock_at, privacy, has_media)
+    VALUES (?, ?, ?, ?, 'public', ?)
+");
+$has_media = ($media_path !== null) ? 1 : 0;
+$stmt1->bind_param("isssi", $user, $title, $message, $unlock_datetime, $has_media);
+$stmt1->execute();
+
+$post_id = $stmt1->insert_id;
+$stmt1->close();
+
+// Insert into post_timers table (your actual table)
+$stmt2 = $db_connection->prepare("
+    INSERT INTO post_timers (post_id, unlock_at, timezone_id, status)
+    VALUES (?, ?, ?, 'scheduled')
+");
+$stmt2->bind_param("isi", $post_id, $unlock_datetime, $timezone_id);
+$stmt2->execute();
+$stmt2->close();
+
+$db_connection->close();
+
+// Final redirect using full BASE_URL
+header("Location: " . BASE_URL . "/user/dashboard.php");
+exit();
+?>

@@ -195,6 +195,76 @@ include_once "../php/session.php";
       <!-- Capsule Cards -->
       <div class="container-fluid p-4">
         <div class="row g-4">
+          <?php
+// Fetch user’s capsules from database
+$stmt = $db_connection->prepare("
+    SELECT 
+        p.post_id,
+        p.title,
+        p.unlock_at,
+        p.created_at,
+        p.has_media,
+        p.privacy,
+        pt.status
+    FROM posts p
+    LEFT JOIN post_timers pt ON p.post_id = pt.post_id
+    WHERE p.user_id = ?
+    ORDER BY p.unlock_at ASC
+");
+$stmt->bind_param("i", $_SESSION['user_id']);
+$stmt->execute();
+$result = $stmt->get_result();
+
+while ($row = $result->fetch_assoc()):
+    $unlock_at = new DateTime($row['unlock_at']);
+    $now = new DateTime();
+
+    // Determine status (Locked or Unlocked)
+    if ($now < $unlock_at) {
+        $status = "Locked";
+        $time_left = $now->diff($unlock_at)->format('%dd %hh %im');
+    } else {
+        $status = "Unlocked";
+        $time_left = "Available 🎉";
+    }
+?>
+<div class="col-md-6 col-xl-3">
+    <div class="capsule-card">
+        <?php if ($row['has_media']): ?>
+        <img src="uploads/<?= $row['has_media'] ?>" class="img-fluid rounded-top" alt="capsule media">
+        <?php else: ?>
+        <img src="https://via.placeholder.com/300x200" class="img-fluid rounded-top" alt="placeholder">
+        <?php endif; ?>
+
+        <div class="p-3">
+            <h5 class="fw-bold"><?= htmlspecialchars($row['title']) ?></h5>
+
+            <div class="d-flex align-items-center text-primary mb-2">
+                <span class="material-symbols-outlined me-1">lock_clock</span>
+                <small>
+                    <span class="countdown" data-unlock="<?= $row['unlock_at'] ?>">
+                        <?= $time_left ?>
+                    </span>
+                </small>
+            </div>
+
+            <div class="text-secondary small">
+                <span class="material-symbols-outlined me-1 small">visibility</span>
+                <?= ucfirst($row['privacy']) ?> · Created: <?= date("M d, Y", strtotime($row['created_at'])) ?>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <button class="btn btn-link text-primary p-0 d-flex align-items-center gap-1">
+                    <span class="material-symbols-outlined">favorite</span> 320
+                </button>
+                <a href="post_detail.php?id=<?= $row['post_id'] ?>" class="btn btn-primary rounded-pill px-4">View</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php endwhile; ?>
+
           <!-- Card 1 -->
           <div class="col-md-6 col-xl-3">
             <div class="capsule-card">
@@ -231,6 +301,30 @@ include_once "../php/session.php";
   src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js">
   
 </script>
+<script>
+document.querySelectorAll('.countdown').forEach(function(el) {
+    let unlockTime = new Date(el.dataset.unlock).getTime();
+
+    let timer = setInterval(function() {
+        let now = new Date().getTime();
+        let distance = unlockTime - now;
+
+        if (distance < 0) {
+            el.innerHTML = "Unlocked 🎉";
+            el.classList.add("text-success", "fw-bold");
+            clearInterval(timer);
+            return;
+        }
+
+        let days = Math.floor(distance / (1000 * 60 * 60 * 24));
+        let hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        let mins = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+
+        el.innerHTML = `${days}d ${hours}h ${mins}m`;
+    }, 1000);
+});
+</script>
+
 </body>
 
 </html>
