@@ -81,7 +81,7 @@ ini_set('display_errors', 0); // set to 1 to display errors, 0 to hide them
             u.user_id,
             c.first_name,
             c.last_name,
-            c.email,
+            c.emai
             cr.username,
             r.role_type
         FROM users u

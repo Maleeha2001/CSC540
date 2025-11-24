@@ -10,6 +10,7 @@
   }
   if (isset($_SESSION['error'])) {
     echo '<div class="alert alert-danger" role="alert">' . $_SESSION['error'] . '</div>';
+    unset($_SESSION['error']);
   }
   /* Message Report */
   if (isset($message)) {
@@ -19,5 +20,6 @@
   if (isset($_SESSION['message'])) {
     // uses bootstrap alert style for error messages
     echo '<div class="alert alert-warning" role="warning">' . $_SESSION['message'] . '</div>';
+    unset($_SESSION['message']);
   }
 ?>

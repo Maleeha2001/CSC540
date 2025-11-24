@@ -13,8 +13,8 @@ session_start(); // Ensure session is active
 //-----------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($_POST['username']) || empty($_POST['password'])) {
-        $_SESSION['message'] = "Username or Password is empty!";
-        header("location: " . SRC_PATH . "/home.php");
+        $_SESSION['error'] = "Username or password cannot be empty.";
+        header("location: " . BASE_URL . "/home.php");
         exit();
     }
 
@@ -60,23 +60,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header("location: " . BASE_URL . "/guest");
             } else {
                 $_SESSION['message'] = "Invalid user role!";
-                header("location: " . SRC_PATH . "/home.php");
+                $_SESSION['error'] = "Invalid user role!";
+                header("location: " . BASE_URL . "/home.php");
             }
             exit();
         } else {
-            $_SESSION['message'] = "Invalid password!";
-            header("location: " . SRC_PATH . "/home.php");
+            $_SESSION['error'] = "Invalid password!";
+            header("location: " . BASE_URL . "/home.php");
             exit();
         }
     } else {
-        $_SESSION['message'] = "Username not found!";
-        header("location: " . SRC_PATH . "/home.php");
+        $_SESSION['error'] = "Username not found!";
+        header("location: " . BASE_URL . "/home.php");
         exit();
     }
 
     $check_user->close();
 } else {
-    header("location: " . SRC_PATH . "/logout.php");
+    header("location: " . BASE_URL . "/home.php");
     exit();
 }
 ?>

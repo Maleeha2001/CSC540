@@ -77,7 +77,7 @@ session_start();
         <input type="password" class="form-control bg-light text-black border-secondary" placeholder="Password" name="password" required>
       </div>
 
-      <?php include_once (ROOT_PATH . '/db/error_rprt.php'); ?>
+      <?php include_once (ROOT_PATH . '/php/error_rprt.php'); ?>
 
       <button type="submit" name="submit" class="btn btn-primary w-100">Log In</button>
     </form>

@@ -21,6 +21,21 @@ $allowed_tabs = ['locked', 'unlocked'];
 if (!in_array($tab, $allowed_tabs, true)) {
   $tab = 'locked';
 }
+
+$profile_stmt = $db_connection->prepare("
+    SELECT first_name, last_name, username
+    FROM users
+    WHERE user_id = ?
+    LIMIT 1
+");
+$profile_stmt->bind_param("i", $_SESSION['user_id']);
+$profile_stmt->execute();
+$profile_result = $profile_stmt->get_result();
+$profile = $profile_result->fetch_assoc();
+$profile_stmt->close();
+
+$display_name = trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? ''));
+$display_handle = !empty($profile['username']) ? '@' . $profile['username'] : '';
 ?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
@@ -141,8 +156,8 @@ if (!in_array($tab, $allowed_tabs, true)) {
       </label>
         </div>
 
-        <h3 class="fw-bold mt-3">Alex Doe</h3>
-        <p class="text-secondary">@alex_doe </p>
+        <h3 class="fw-bold mt-3"><?= htmlspecialchars($display_name ?: $_SESSION['user_first']); ?></h3>
+        <p class="text-secondary"><?= htmlspecialchars($display_handle); ?></p>
         <p class="text-secondary small">
           Time traveling through memories. Sealing moments for the future.
         </p>
@@ -211,11 +226,19 @@ $sql = "
         p.unlock_at,
         p.created_at,
         p.has_media,
+        p.media_path,
         p.privacy,
-        pt.status
+        pt.status,
+        tz.tz_name,
+        tz.utc_offset,
+        GROUP_CONCAT(DISTINCT tg.name ORDER BY tg.name SEPARATOR ', ') AS tags
     FROM posts p
     LEFT JOIN post_timers pt ON p.post_id = pt.post_id
+    LEFT JOIN timezones tz ON pt.timezone_id = tz.timezone_id
+    LEFT JOIN post_tags ptg ON p.post_id = ptg.post_id
+    LEFT JOIN tags tg ON ptg.tag_id = tg.tag_id
     WHERE p.user_id = ? AND $whereClause
+    GROUP BY p.post_id, p.title, p.unlock_at, p.created_at, p.has_media, p.media_path, p.privacy, pt.status, tz.tz_name, tz.utc_offset
     ORDER BY p.unlock_at ASC
 ";
 $stmt = $db_connection->prepare($sql);
@@ -242,14 +265,22 @@ while ($row = $result->fetch_assoc()):
         $status = "Unlocked";
         $time_left = "Available 🎉";
     }
+
+    $mediaPath = $row['media_path'] ?? '';
+    if (!empty($mediaPath)) {
+        $imageSrc = BASE_URL . '/' . ltrim($mediaPath, '/');
+    } else {
+        $imageSrc = 'https://via.placeholder.com/300x200';
+    }
+
+    $timezoneLabel = !empty($row['tz_name'])
+        ? $row['tz_name'] . (!empty($row['utc_offset']) ? ' (UTC' . $row['utc_offset'] . ')' : '')
+        : 'No timezone set';
+    $tagLabel = !empty($row['tags']) ? $row['tags'] : 'No tags';
 ?>
 <div class="col-md-6 col-xl-3">
     <div class="capsule-card">
-        <?php if ($row['has_media']): ?>
-        <img src="uploads/<?= $row['has_media'] ?>" class="img-fluid rounded-top" alt="capsule media">
-        <?php else: ?>
-        <img src="https://via.placeholder.com/300x200" class="img-fluid rounded-top" alt="placeholder">
-        <?php endif; ?>
+        <img src="<?= htmlspecialchars($imageSrc) ?>" class="img-fluid rounded-top" alt="capsule media">
 
         <div class="p-3">
             <h5 class="fw-bold"><?= htmlspecialchars($row['title']) ?></h5>
@@ -267,6 +298,14 @@ while ($row = $result->fetch_assoc()):
                 <span class="material-symbols-outlined me-1 small">visibility</span>
                 <?= ucfirst($row['privacy']) ?> · Created: <?= date("M d, Y", strtotime($row['created_at'])) ?>
             </div>
+            <div class="text-secondary small mt-1">
+                <span class="material-symbols-outlined me-1 small">schedule</span>
+                <?= htmlspecialchars($timezoneLabel) ?>
+            </div>
+            <div class="text-secondary small mt-1">
+                <span class="material-symbols-outlined me-1 small">sell</span>
+                <?= htmlspecialchars($tagLabel) ?>
+            </div>
 
             <div class="d-flex justify-content-between align-items-center mt-3">
                 <button class="btn btn-link text-primary p-0 d-flex align-items-center gap-1">
@@ -274,36 +313,19 @@ while ($row = $result->fetch_assoc()):
                 </button>
                 <a href="post_detail.php?id=<?= $row['post_id'] ?>" class="btn btn-primary rounded-pill px-4">View</a>
             </div>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+                <a href="edit_post.php?id=<?= $row['post_id'] ?>" class="btn btn-outline-light btn-sm">Edit</a>
+                <form action="capsules/delete.php" method="POST" onsubmit="return confirm('Delete this capsule?');">
+                    <input type="hidden" name="post_id" value="<?= $row['post_id'] ?>">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                </form>
+            </div>
         </div>
     </div>
 </div>
 
 <?php endwhile; ?>
 <?php endif; ?>
-
-          <!-- Card 1 -->
-          <div class="col-md-6 col-xl-3">
-            <div class="capsule-card">
-              <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvGM9LhPpC44cP3iYuSnrt2PxMpuc5Ihals9FP-sxBhWHiLi69-3VJoVVYYH6dTGEmwU2ZP21eAG4HkNQgsSOQ9bBNSoz4gftrjk8fXYTAUCJCFkf7aJsKbBcCKYuEONjef5iX8MQggXA73Nns2yn6J_1zdeN7pykXcGHzAjPLzXhbSedlAwD7asvhP70eYF27jRZuzLQW3uBPCC0ShFbYP3nDbK7uCLkHFjnxtTAVeIg1ya3zSUBYAWLyGqdqdnUuaobwfyD91z4" class="img-fluid rounded-top" alt="mountains" />
-              <div class="p-3">
-                <h5 class="fw-bold">Trip to the Mountains</h5>
-                <div class="d-flex align-items-center text-primary mb-2">
-                  <span class="material-symbols-outlined me-1">lock_clock</span>
-                  <small>Unlocks in 125d 4h 15m</small>
-                </div>
-                <div class="text-secondary small">
-                  <span class="material-symbols-outlined me-1 small">visibility</span>
-                  Public · Created: Aug 23, 2023
-                </div>
-                <div class="d-flex justify-content-between align-items-center mt-3">
-                  <button class="btn btn-link text-primary p-0 d-flex align-items-center gap-1">
-                    <span class="material-symbols-outlined">favorite</span> 320
-                  </button>
-                  <a href="post_detail.php" class="btn"> 
-                  <button class="btn btn-primary rounded-pill px-4">View</button></a>
-              </div>
-            </div>
-          </div>
 
         </div>
       </div>

@@ -74,11 +74,11 @@ if (!empty($_FILES['media']['name']) && is_uploaded_file($_FILES['media']['tmp_n
 
 // Insert into posts table
 $stmt1 = $db_connection->prepare("
-    INSERT INTO posts (user_id, title, caption, unlock_at, privacy, has_media)
-    VALUES (?, ?, ?, ?, 'public', ?)
+    INSERT INTO posts (user_id, title, caption, unlock_at, privacy, has_media, media_path)
+    VALUES (?, ?, ?, ?, 'public', ?, ?)
 ");
 $has_media = ($media_path !== null) ? 1 : 0;
-$stmt1->bind_param("isssi", $user, $title, $message, $unlock_datetime, $has_media);
+$stmt1->bind_param("isssis", $user, $title, $message, $unlock_datetime, $has_media, $media_path);
 $stmt1->execute();
 
 $post_id = $stmt1->insert_id;
@@ -92,6 +92,41 @@ $stmt2 = $db_connection->prepare("
 $stmt2->bind_param("isi", $post_id, $unlock_datetime, $timezone_id);
 $stmt2->execute();
 $stmt2->close();
+
+// Handle tags relationship
+$tagNames = array_unique(array_filter(array_map('trim', explode(',', $tags))));
+if (!empty($tagNames)) {
+    $selectTag = $db_connection->prepare("SELECT tag_id FROM tags WHERE name = ? LIMIT 1");
+    $insertTag = $db_connection->prepare("INSERT INTO tags (name) VALUES (?)");
+    $insertPostTag = $db_connection->prepare("INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)");
+
+    foreach ($tagNames as $tagName) {
+        if ($tagName === '') {
+            continue;
+        }
+
+        $tag_id = null;
+        $selectTag->bind_param("s", $tagName);
+        $selectTag->execute();
+        $result = $selectTag->get_result();
+        if ($existing = $result->fetch_assoc()) {
+            $tag_id = (int)$existing['tag_id'];
+        } else {
+            $insertTag->bind_param("s", $tagName);
+            $insertTag->execute();
+            $tag_id = $insertTag->insert_id;
+        }
+
+        if ($tag_id) {
+            $insertPostTag->bind_param("ii", $post_id, $tag_id);
+            $insertPostTag->execute();
+        }
+    }
+
+    $selectTag->close();
+    $insertTag->close();
+    $insertPostTag->close();
+}
 
 $db_connection->close();
 

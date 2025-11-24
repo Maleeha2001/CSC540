@@ -1,3 +1,68 @@
+<?php
+include_once(realpath(dirname(__FILE__) . '/php/path.php'));
+include_once "../php/session.php";
+
+$post_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+if ($post_id <= 0) {
+    header("Location: dashboard.php");
+    exit();
+}
+
+$post_stmt = $db_connection->prepare("
+    SELECT 
+        p.post_id,
+        p.user_id,
+        p.title,
+        p.caption,
+        p.unlock_at,
+        p.created_at,
+        p.privacy,
+        p.media_path,
+        p.has_media,
+        u.first_name,
+        u.last_name,
+        u.username
+    FROM posts p
+    INNER JOIN users u ON p.user_id = u.user_id
+    WHERE p.post_id = ? AND p.user_id = ?
+");
+$post_stmt->bind_param("ii", $post_id, $_SESSION['user_id']);
+$post_stmt->execute();
+$post_result = $post_stmt->get_result();
+$post = $post_result->fetch_assoc();
+$post_stmt->close();
+
+if (!$post) {
+    header("Location: dashboard.php");
+    exit();
+}
+
+$timer_stmt = $db_connection->prepare("
+    SELECT pt.unlock_at, pt.status, tz.tz_name, tz.utc_offset
+    FROM post_timers pt
+    LEFT JOIN timezones tz ON pt.timezone_id = tz.timezone_id
+    WHERE pt.post_id = ? LIMIT 1
+");
+$timer_stmt->bind_param("i", $post_id);
+$timer_stmt->execute();
+$timer_result = $timer_stmt->get_result();
+$timer = $timer_result->fetch_assoc();
+$timer_stmt->close();
+
+$unlockDateTime = new DateTime($post['unlock_at']);
+$now = new DateTime();
+$isUnlocked = $now >= $unlockDateTime;
+$statusLabel = $isUnlocked ? 'Unlocked' : 'Locked';
+$statusAccent = $isUnlocked ? 'Unlocked on ' . $unlockDateTime->format('M d, Y h:i A') : 'Unlocks on ' . $unlockDateTime->format('M d, Y h:i A');
+
+$mediaSrc = 'https://via.placeholder.com/600x300';
+if (!empty($post['media_path'])) {
+    $mediaSrc = BASE_URL . '/' . ltrim($post['media_path'], '/');
+}
+
+$authorName = trim(($post['first_name'] ?? '') . ' ' . ($post['last_name'] ?? ''));
+$authorHandle = !empty($post['username']) ? '@' . $post['username'] : '';
+?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 
@@ -93,17 +158,17 @@
 
             <!-- TOP NAV -->
             <div class="d-flex align-items-center px-3 py-3 border-bottom card-surface">
-                <a href="feed.php" class="text-white">
+                <a href="dashboard.php" class="text-white">
                     <span class="material-symbols-outlined fs-3">arrow_back</span>
                 </a>
 
                 <div class="d-flex align-items-center ms-3 flex-grow-1">
                     <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBx4LQCd_23dIxj5fQVhEAQ7pYdrqByRTn_Y-btuNgYejGguz4UF0ssd0T5LMFghT2CmK7FwfZV1hMyO9Caem_L7Vi05lPVzIrehZD3QwvrjVoidP0aM3cg0Q4jN1l8pWOO3FYN-p84diWShVJN5QCqqy7FlOzQEUcRHagwnBg-0HW8NXhtmVk01gOZ8W5qgUJxg6A6bigLHhyrX8QtBjJfx-1V0e8Qd7espa94Jr6Ic8rBf8nIOw-1ZDZEytjGgAgDADu2YF7kLbE"
-                        class="rounded-circle me-3" width="38" height="38">
+                        class="rounded-circle me-3" width="38" height="38" alt="author avatar">
 
                     <div>
-                        <div class="fw-bold small">Capsule by</div>
-                        <div class="text-secondary small">@Jane Doe</div>
+                        <div class="fw-bold small">Capsule by <?= htmlspecialchars($authorName ?: 'You'); ?></div>
+                        <div class="text-secondary small"><?= htmlspecialchars($authorHandle); ?></div>
                     </div>
                 </div>
 
@@ -114,21 +179,25 @@
             <!-- MAIN CONTENT -->
             <div class="container py-4">
 
-                <!-- MEDIA PREVIEW -->
-                <!-- <div class="media-box mb-4"
-                    style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDLEn8ALdYsNZQ9n_-9_SGxg1FSbPeSJ_f6wJSSL0jUh9IZDAYUlzbm3a9lm5zc39Z1XEmMq5q7BZkCP4EfT_kqtvLMSk1PoLAYovlFTIDdbfUkublvgC9FnYPg4Vr_u-cCojFhnj2CmE14jRTKXRiju6s9TxaT_bA5JNTFHcGMb1KfVGYW6ibdLdN5dvG_bZ1bC-iYGqXEw-6VCinuF5OO5e0kFYoXrC_Pz8epNpU5x8UxUER_DW66NzEQK67B8ZFbADBFHyV-eI4");'>
-                    <button class="btn btn-dark rounded-circle position-absolute top-50 start-50 translate-middle px-3 py-2">
-                        <span class="material-symbols-outlined fs-1">play_arrow</span>
-                    </button>
-                </div> -->
+                <?php if (!empty($post['media_path'])): ?>
+                <div class="media-box mb-4" style='background-image: url("<?= htmlspecialchars($mediaSrc) ?>");'>
+                    <?php if ($post['has_media'] && preg_match('/\.mp4$/i', $post['media_path'])): ?>
+                        <span class="badge bg-dark position-absolute top-0 end-0 m-2">Video</span>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
 
-                <!-- TITLE -->
-                <h2 class="fw-bold mb-1">My First capsule</h2>
-                <p class="accent small mb-3">Locked on Oct 26, 2023 • Unlocked Today</p>
+                <h2 class="fw-bold mb-1"><?= htmlspecialchars($post['title']); ?></h2>
+                <p class="accent small mb-3"><?= htmlspecialchars($statusLabel); ?> · <?= htmlspecialchars($statusAccent); ?></p>
 
-                <!-- BODY -->
+                <?php if (!$isUnlocked): ?>
+                    <div class="alert alert-warning text-dark">
+                        This capsule is still locked. It will unlock on <?= htmlspecialchars($unlockDateTime->format('M d, Y h:i A')); ?>.
+                    </div>
+                <?php endif; ?>
+
                 <p class="text-light mb-4">
-                    Here's a quick preview of the message that was just unlocked. It's exciting to finally see what was inside the capsule!
+                    <?= nl2br(htmlspecialchars($post['caption'])); ?>
                 </p>
                 <div class="container d-flex justify-content-between border pt-3">
 
