@@ -15,6 +15,103 @@ $page_name = "dashboard";
 //   exit();
 
 include_once "../php/session.php";
+include_once "../php/user_profile_helpers.php";
+
+/**
+ * Lightweight cache for information_schema lookups.
+ */
+function table_exists_cached($connection, $table_name) {
+    static $table_cache = [];
+    if (isset($table_cache[$table_name])) {
+        return $table_cache[$table_name];
+    }
+    if (!defined('DB_NAME')) {
+        return $table_cache[$table_name] = false;
+    }
+
+    $stmt = $connection->prepare("
+        SELECT 1
+        FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+        LIMIT 1
+    ");
+    if (!$stmt) {
+        return $table_cache[$table_name] = false;
+    }
+    $db_name = DB_NAME;
+    $stmt->bind_param("ss", $db_name, $table_name);
+    $stmt->execute();
+    $stmt->store_result();
+    $exists = $stmt->num_rows > 0;
+    $stmt->close();
+    return $table_cache[$table_name] = $exists;
+}
+
+function column_exists_cached($connection, $table_name, $column_name) {
+    static $column_cache = [];
+    $cache_key = $table_name . '.' . $column_name;
+    if (isset($column_cache[$cache_key])) {
+        return $column_cache[$cache_key];
+    }
+    if (!defined('DB_NAME')) {
+        return $column_cache[$cache_key] = false;
+    }
+
+    $stmt = $connection->prepare("
+        SELECT 1
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+        LIMIT 1
+    ");
+    if (!$stmt) {
+        return $column_cache[$cache_key] = false;
+    }
+    $db_name = DB_NAME;
+    $stmt->bind_param("sss", $db_name, $table_name, $column_name);
+    $stmt->execute();
+    $stmt->store_result();
+    $exists = $stmt->num_rows > 0;
+    $stmt->close();
+    return $column_cache[$cache_key] = $exists;
+}
+
+function count_relations($connection, $user_id, $candidates) {
+    foreach ($candidates as $table => $columns) {
+        if (!table_exists_cached($connection, $table)) {
+            continue;
+        }
+        foreach ($columns as $column) {
+            if (!column_exists_cached($connection, $table, $column)) {
+                continue;
+            }
+            $sql = "SELECT COUNT(*) AS total FROM `$table` WHERE `$column` = ?";
+            $stmt = $connection->prepare($sql);
+            if (!$stmt) {
+                continue;
+            }
+            $stmt->bind_param("i", $user_id);
+            if ($stmt->execute()) {
+                $result = $stmt->get_result();
+                if ($result && ($row = $result->fetch_assoc())) {
+                    $count = (int)$row['total'];
+                    $stmt->close();
+                    return $count;
+                }
+            }
+            $stmt->close();
+        }
+    }
+    return 0;
+}
+
+$user_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
+
+$followersCount = 0; // Following system not implemented yet
+$followingCount = 0;
+
+$capsulesCount = count_relations($db_connection, $user_id, [
+    'posts' => ['user_id']
+]);
 
 $tab = strtolower($_GET['tab'] ?? 'locked');
 $allowed_tabs = ['locked', 'unlocked'];
@@ -36,6 +133,12 @@ $profile_stmt->close();
 
 $display_name = trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? ''));
 $display_handle = !empty($profile['username']) ? '@' . $profile['username'] : '';
+$bioText = trim(get_user_bio($db_connection, $user_id));
+if ($bioText === '') {
+    $bioText = 'Time traveling through memories. Sealing moments for the future.';
+}
+$dashboard_flash = $_SESSION['dashboard_flash'] ?? '';
+unset($_SESSION['dashboard_flash']);
 ?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
@@ -143,6 +246,12 @@ $display_handle = !empty($profile['username']) ? '@' . $profile['username'] : ''
     <!-- Main -->
     <main class="flex-grow-1 d-flex flex-column">
 
+      <?php if (!empty($dashboard_flash)): ?>
+      <div class="alert alert-success alert-dismissible fade show mx-4 mt-3" role="alert">
+        <?php echo htmlspecialchars($dashboard_flash); ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+      <?php endif; ?>
 
       <!-- Profile Top -->
       <div class="text-center mb-4">
@@ -159,24 +268,23 @@ $display_handle = !empty($profile['username']) ? '@' . $profile['username'] : ''
         <h3 class="fw-bold mt-3"><?= htmlspecialchars($display_name ?: $_SESSION['user_first']); ?></h3>
         <p class="text-secondary"><?= htmlspecialchars($display_handle); ?></p>
         <p class="text-secondary small">
-          Time traveling through memories. Sealing moments for the future.
+          <?= nl2br(htmlspecialchars($bioText)); ?>
         </p>
-        <a href="profile.php" class="btn"> 
-        <button class="btn btn-secondary fw-bold px-4 mt-2">Edit Profile</button></a>
+        <a href="profile.php" class="btn btn-secondary fw-bold px-4 mt-2">Edit Profile</a>
       </div>
 
       <!-- Stats -->
       <div class="row g-3 mb-4">
         <div class="col-md stat-card">
-          <h3 class="fw-bold">12</h3>
+          <h3 class="fw-bold"><?= number_format($capsulesCount); ?></h3>
           <p class="text-secondary mb-0">Capsules</p>
         </div>
         <div class="col-md stat-card">
-          <h3 class="fw-bold">1.2k</h3>
+          <h3 class="fw-bold"><?= number_format($followersCount); ?></h3>
           <p class="text-secondary mb-0">Followers</p>
         </div>
         <div class="col-md stat-card">
-          <h3 class="fw-bold">256</h3>
+          <h3 class="fw-bold"><?= number_format($followingCount); ?></h3>
           <p class="text-secondary mb-0">Following</p>
         </div>
       </div>
