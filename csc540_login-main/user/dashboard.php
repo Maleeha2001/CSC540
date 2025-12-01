@@ -325,8 +325,7 @@ unset($_SESSION['dashboard_flash']);
       <div class="container-fluid p-4">
         <div class="row g-4">
           <?php
-// Fetch user’s capsules from database
-$whereClause = $tab === 'locked' ? 'p.unlock_at > NOW()' : 'p.unlock_at <= NOW()';
+// Fetch user’s capsules from database and filter per tab in PHP to avoid timezone drift
 $sql = "
     SELECT 
         p.post_id,
@@ -345,7 +344,7 @@ $sql = "
     LEFT JOIN timezones tz ON pt.timezone_id = tz.timezone_id
     LEFT JOIN post_tags ptg ON p.post_id = ptg.post_id
     LEFT JOIN tags tg ON ptg.tag_id = tg.tag_id
-    WHERE p.user_id = ? AND $whereClause
+    WHERE p.user_id = ?
     GROUP BY p.post_id, p.title, p.unlock_at, p.created_at, p.has_media, p.media_path, p.privacy, pt.status, tz.tz_name, tz.utc_offset
     ORDER BY p.unlock_at ASC
 ";
@@ -354,25 +353,32 @@ $stmt->bind_param("i", $_SESSION['user_id']);
 $stmt->execute();
 $result = $stmt->get_result();
 
-if ($result->num_rows === 0):
+$capsules = [];
+$now = new DateTime();
+while ($row = $result->fetch_assoc()) {
+    $unlock_at = new DateTime($row['unlock_at']);
+    $row['_unlock_datetime'] = $unlock_at;
+    $row['_is_locked'] = $now < $unlock_at;
+    $capsules[] = $row;
+}
+
+$filteredCapsules = array_values(array_filter($capsules, function ($row) use ($tab) {
+    return $tab === 'locked' ? $row['_is_locked'] : !$row['_is_locked'];
+}));
+
+if (empty($filteredCapsules)):
     $emptyMessage = $tab === 'locked' ? 'No locked capsules right now.' : 'No unlocked capsules yet.';
 ?>
 <div class="col-12 text-center text-secondary py-5">
     <?php echo $emptyMessage; ?>
 </div>
 <?php else:
-while ($row = $result->fetch_assoc()):
-    $unlock_at = new DateTime($row['unlock_at']);
-    $now = new DateTime();
-
-    // Determine status (Locked or Unlocked)
-    if ($now < $unlock_at) {
-        $status = "Locked";
-        $time_left = $now->diff($unlock_at)->format('%dd %hh %im');
-    } else {
-        $status = "Unlocked";
-        $time_left = "Available 🎉";
-    }
+foreach ($filteredCapsules as $row):
+    $unlock_at = $row['_unlock_datetime'];
+    $status = $row['_is_locked'] ? "Locked" : "Unlocked";
+    $time_left = $row['_is_locked']
+        ? $now->diff($unlock_at)->format('%dd %hh %im')
+        : "Available 🎉";
 
     $mediaPath = $row['media_path'] ?? '';
     if (!empty($mediaPath)) {
@@ -432,7 +438,7 @@ while ($row = $result->fetch_assoc()):
     </div>
 </div>
 
-<?php endwhile; ?>
+<?php endforeach; ?>
 <?php endif; ?>
 
         </div>

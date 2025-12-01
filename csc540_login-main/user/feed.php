@@ -5,16 +5,101 @@
 /* Quick Paths */
 include_once(realpath(dirname(__FILE__) . '/php/path.php'));
 
-
 /* Page Name */
 $page_name = "feed";
 
-/* Start The Session */
-session_start();
-/* Access Control: Only for logged in users with role 'user' (role_id = 2) */
+include_once "../php/session.php";
+include_once "../php/post_interactions.php";
+
 if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] != 2) {
   header("Location: ../index.php");
   exit();
+}
+
+ensure_reactions_table($db_connection);
+ensure_comments_table($db_connection);
+
+$viewer_id = (int)$_SESSION['user_id'];
+
+function format_feed_timestamp($dateString) {
+    try {
+        $target = new DateTime($dateString);
+    } catch (Exception $e) {
+        return '';
+    }
+    $now = new DateTime();
+    $diff = $now->diff($target);
+    $units = [
+        'y' => 'yr',
+        'm' => 'mo',
+        'd' => 'd',
+        'h' => 'h',
+        'i' => 'm'
+    ];
+
+    foreach ($units as $property => $suffix) {
+        if ($diff->$property > 0) {
+            $value = $diff->$property;
+            return ($now >= $target)
+                ? "Unlocked {$value}{$suffix} ago"
+                : "Unlocks in {$value}{$suffix}";
+        }
+    }
+    return ($now >= $target) ? 'Unlocked moments ago' : 'Unlocks soon';
+}
+
+$post_sql = "
+    SELECT 
+        p.post_id,
+        p.user_id,
+        p.title,
+        p.caption,
+        p.media_path,
+        p.has_media,
+        p.unlock_at,
+        p.created_at,
+        u.first_name,
+        u.last_name,
+        u.username,
+        COALESCE(l.like_count, 0) AS like_count,
+        COALESCE(c.comment_count, 0) AS comment_count,
+        CASE 
+            WHEN EXISTS (
+                SELECT 1 
+                FROM reactions r2 
+                WHERE r2.post_id = p.post_id 
+                AND r2.user_id = ? 
+                AND r2.reaction_type = 'like'
+            ) THEN 1 ELSE 0 
+        END AS user_liked
+    FROM posts p
+    INNER JOIN users u ON p.user_id = u.user_id
+    LEFT JOIN (
+        SELECT post_id, COUNT(*) AS like_count
+        FROM reactions
+        WHERE reaction_type = 'like'
+        GROUP BY post_id
+    ) l ON l.post_id = p.post_id
+    LEFT JOIN (
+        SELECT post_id, COUNT(*) AS comment_count
+        FROM comments
+        GROUP BY post_id
+    ) c ON c.post_id = p.post_id
+    WHERE p.privacy = 'public' AND p.unlock_at <= NOW()
+    ORDER BY p.unlock_at DESC, p.created_at DESC
+    LIMIT 25
+";
+
+$post_stmt = $db_connection->prepare($post_sql);
+$posts = [];
+if ($post_stmt) {
+    $post_stmt->bind_param("i", $viewer_id);
+    $post_stmt->execute();
+    $result = $post_stmt->get_result();
+    while ($result && ($row = $result->fetch_assoc())) {
+        $posts[] = $row;
+    }
+    $post_stmt->close();
 }
 
 ?>
@@ -82,6 +167,28 @@ if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] != 2) {
     .material-symbols-outlined {
       vertical-align: middle;
     }
+
+    .like-toggle.liked .material-symbols-outlined {
+      color: #ff5a8d;
+      font-variation-settings: 'FILL' 1;
+    }
+
+    .comment-panel {
+      background-color: rgba(0, 0, 0, 0.25);
+      border-radius: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 1rem;
+    }
+
+    .comments-list .comment-item + .comment-item {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+    }
+
+    .comment-item .author {
+      font-weight: 600;
+    }
   </style>
 </head>
 
@@ -92,73 +199,232 @@ if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] != 2) {
   <div class="d-flex min-vh-100">
     <?php include_once "../include/sidebar.php"; ?>
     <!-- Feed Section -->
-    <main class="container py-4">
-      <?php include_once "../include/sidebar.php"; ?>
+    <main class="flex-grow-1 container py-4" id="feed">
       <!-- Header -->
-      <header class="navbar sticky-top px-4 py-3">
+      <header class="navbar sticky-top px-4 py-3 mb-4">
         <div class="d-flex justify-content-between align-items-center w-100">
-          <h2 class="fw-bold mb-0 text-primary"> Your Feed</h2>
+          <h2 class="fw-bold mb-0 text-primary">Your Feed</h2>
         </div>
       </header>
 
-
-      <!-- Post Card 1 -->
-      <div class="card mb-4 p-4">
-        <div class="d-flex align-items-center mb-3">
-          <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBx4LQCd_23dIxj5fQVhEAQ7pYdrqByRTn_Y-btuNgYejGguz4UF0ssd0T5LMFghT2CmK7FwfZV1hMyO9Caem_L7Vi05lPVzIrehZD3QwvrjVoidP0aM3cg0Q4jN1l8pWOO3FYN-p84diWShVJN5QCqqy7FlOzQEUcRHagwnBg-0HW8NXhtmVk01gOZ8W5qgUJxg6A6bigLHhyrX8QtBjJfx-1V0e8Qd7espa94Jr6Ic8rBf8nIOw-1ZDZEytjGgAgDADu2YF7kLbE"
-            class="rounded-circle me-3" style="width:48px;height:48px;object-fit:cover;">
-          <div>
-            <p class="fw-bold mb-0">Jane Doe</p>
-            <small class="text-secondary">Unlocked 2h ago</small>
+      <?php if (empty($posts)): ?>
+        <div class="card mb-4 p-4 text-center text-secondary">
+          No unlocked capsules are available yet. Check back soon!
+        </div>
+      <?php else: ?>
+        <?php foreach ($posts as $post):
+            $authorName = trim(($post['first_name'] ?? '') . ' ' . ($post['last_name'] ?? ''));
+            $authorHandle = !empty($post['username']) ? '@' . $post['username'] : '';
+            $avatar = 'https://ui-avatars.com/api/?background=0D8ABC&color=fff&name=' . urlencode($authorName ?: $authorHandle ?: 'User');
+            $relativeTime = format_feed_timestamp($post['unlock_at']);
+            $mediaPath = !empty($post['media_path']) ? BASE_URL . '/' . ltrim($post['media_path'], '/') : '';
+            $metaLine = implode(' · ', array_filter([$authorHandle, $relativeTime]));
+        ?>
+        <div class="card mb-4 p-4 post-card" data-post-id="<?= $post['post_id']; ?>">
+          <div class="d-flex align-items-center mb-3">
+            <img src="<?= htmlspecialchars($avatar); ?>" class="rounded-circle me-3" style="width:48px;height:48px;object-fit:cover;" alt="author avatar">
+            <div>
+              <p class="fw-bold mb-0"><?= htmlspecialchars($authorName ?: 'TimeCap User'); ?></p>
+              <small class="text-secondary"><?= htmlspecialchars($metaLine ?: $relativeTime); ?></small>
+            </div>
+          </div>
+          <?php if (!empty($mediaPath)): ?>
+            <?php if (!empty($post['has_media']) && preg_match('/\.mp4$/i', $post['media_path'])): ?>
+              <video class="rounded mb-3 w-100" controls preload="metadata">
+                <source src="<?= htmlspecialchars($mediaPath); ?>" type="video/mp4">
+              </video>
+            <?php else: ?>
+              <img src="<?= htmlspecialchars($mediaPath); ?>" class="rounded mb-3 w-100" alt="Capsule media">
+            <?php endif; ?>
+          <?php endif; ?>
+          <h4 class="fw-bold"><?= htmlspecialchars($post['title']); ?></h4>
+          <p><?= nl2br(htmlspecialchars($post['caption'])); ?></p>
+          <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-3">
+            <div class="d-flex gap-3">
+              <button type="button" class="btn btn-link text-white like-toggle <?= $post['user_liked'] ? 'liked' : ''; ?>" data-post-id="<?= $post['post_id']; ?>" data-liked="<?= $post['user_liked']; ?>">
+                <span class="material-symbols-outlined me-1">favorite</span>
+                <span class="like-count" data-like-count data-count-for="<?= $post['post_id']; ?>"><?= $post['like_count']; ?></span>
+              </button>
+              <button type="button" class="btn btn-link text-white comment-toggle" data-post-id="<?= $post['post_id']; ?>">
+                <span class="material-symbols-outlined me-1">chat_bubble</span>
+                <span class="comment-count" data-comment-count data-count-for="<?= $post['post_id']; ?>"><?= $post['comment_count']; ?></span>
+              </button>
+            </div>
+            <a href="post_detail.php?id=<?= $post['post_id']; ?>" class="btn btn-primary rounded-pill px-4">View</a>
+          </div>
+          <div class="comment-panel d-none mt-3" data-comment-panel="<?= $post['post_id']; ?>">
+            <div class="comments-list small mb-3" data-comments-list="<?= $post['post_id']; ?>">
+              <div class="text-secondary">No comments yet.</div>
+            </div>
+            <form class="comment-form d-flex gap-2" data-post-id="<?= $post['post_id']; ?>">
+              <input type="text" name="comment" class="form-control" placeholder="Add a comment..." maxlength="500" required>
+              <button type="submit" class="btn btn-primary">Send</button>
+            </form>
           </div>
         </div>
-        <p>Here's a quick preview of the message that was just unlocked. It's exciting to finally see what was inside the capsule!</p>
-        <div class="d-flex justify-content-between align-items-center mt-3">
-          <div>
-            <button class="btn btn-link text-white"><span class="material-symbols-outlined me-1">favorite</span>12</button>
-            <button class="btn btn-link text-white"><span class="material-symbols-outlined me-1">chat_bubble</span>3</button>
-            <button class="btn btn-link text-white"><span class="material-symbols-outlined me-1">share</span></button>
-          </div>
-          <a href="post_detail.php" class="btn"> 
-          <button class="btn btn-primary rounded-pill px-4">View</button></a>
-        </div>
-      </div>
-
-      <!-- Post Card 2 -->
-      <div class="card mb-4 p-4">
-        <div class="d-flex align-items-center mb-3">
-          <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDf26ioQbHD9Q4j0CZhVW6igikeo-U-T1HxNA0erQj3YWSL8lv8bvRned-IlUrwrAh_C6zlRaD03bRqgn5N9Zv3ZHf8QkmWKh6unbUTQ_OpM7wsGpJIeEaO_aL67bT5XtENESkMfAzgRJOK-loBPG6AhJlOTs_C6ZXahHtG71CxHEuOWHPNJyTpm6O-CucY3vd5T-FjOMKTnp0uQDLzpTPkx3g2xXOFyobPDktKoa0YMBdIUT4J6emd2HRDf_cz_WaSytdRgoI8-uU"
-            class="rounded-circle me-3" style="width:48px;height:48px;object-fit:cover;">
-          <div>
-            <p class="fw-bold mb-0">John Smith</p>
-            <small class="text-secondary">Unlocked 5h ago</small>
-          </div>
-        </div>
-        <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBUFFdeaz4vlJfhXTZnCtLWd1IAX0QLkmVxDBM6rkmRy6NDbnoIE0rWnUp3mqirKqpGCVGezF52xNoOOELog0aSyi13EaO4ZZPeGxh2HS0b_Rs6o92wlo7piVG1yHs5K4Fj0OS1sGbwOKEdCJdJWPEvdReq8501K5ljY_zFNHlpWptp2dFs5fuvqik_hUXR8rPiYi0Bp7X0Oc3SmqMt3yIokgr75UerAvFtAZoZTiAwm9x7UiTjYpC7CxAbTB4qMkKu7cL5oRj02CU"
-          class="rounded mb-3 w-100" alt="Watch">
-        <p>My favorite watch. Left this for myself a year ago to see if it's still my daily driver. It is.</p>
-        <div class="d-flex justify-content-between align-items-center mt-3">
-          <div>
-            <button class="btn btn-link text-white"><span class="material-symbols-outlined me-1">favorite</span>28</button>
-            <button class="btn btn-link text-white"><span class="material-symbols-outlined me-1">chat_bubble</span>7</button>
-            <button class="btn btn-link text-white"><span class="material-symbols-outlined me-1">share</span></button>
-          </div>
-          <button class="btn btn-primary rounded-pill px-4">View</button>
-        </div>
-      </div>
+        <?php endforeach; ?>
+      <?php endif; ?>
     </main>
-
-    <!-- Floating Action Button -->
-    <button class="btn btn-primary rounded-circle position-fixed bottom-0 end-0 m-4 shadow-lg d-flex align-items-center justify-content-center" style="width:56px;height:56px;">
-      <span class="material-symbols-outlined">add</span>
-    </button>
-    <!-- Footer -->
-    <footer class="text-center py-3 mt-auto">
-      <?php include_once "../include/footer.php"; ?>
-    </footer>
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   </div>
+
+  <!-- Floating Action Button -->
+  <button class="btn btn-primary rounded-circle position-fixed bottom-0 end-0 m-4 shadow-lg d-flex align-items-center justify-content-center"
+    style="width:56px;height:56px;" onclick="location.href='create_post.php'">
+    <span class="material-symbols-outlined">add</span>
+  </button>
+  <!-- Footer -->
+  <footer class="text-center py-3 mt-auto">
+    <?php include_once "../include/footer.php"; ?>
+  </footer>
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const feed = document.getElementById('feed');
+
+      const updateCountDisplays = (selector, postId, newValue) => {
+        document.querySelectorAll(`${selector}[data-count-for="${postId}"]`).forEach((el) => {
+          el.textContent = newValue;
+        });
+      };
+
+      const renderComments = (listEl, comments) => {
+        if (!listEl) {
+          return;
+        }
+        if (!comments || comments.length === 0) {
+          listEl.innerHTML = '<div class="text-secondary">No comments yet.</div>';
+          return;
+        }
+        listEl.innerHTML = comments.map((comment) => {
+          const author = [comment.first_name, comment.last_name].filter(Boolean).join(' ') || comment.username || 'User';
+          const when = new Date(comment.created_at).toLocaleString();
+          return `
+            <div class="comment-item">
+              <div class="author text-primary small">${escapeHtml(author)}</div>
+              <div>${escapeHtml(comment.comment_text)}</div>
+              <div class="text-secondary small">${when}</div>
+            </div>
+          `;
+        }).join('');
+      };
+
+      const fetchComments = async (postId, listEl) => {
+        try {
+          const response = await fetch(`api/get_comments.php?post_id=${encodeURIComponent(postId)}`);
+          const data = await response.json();
+          if (data.success) {
+            renderComments(listEl, data.comments);
+            updateCountDisplays('[data-comment-count]', postId, data.comment_count);
+          } else {
+            listEl.innerHTML = `<div class="text-danger small">${data.message || 'Unable to load comments.'}</div>`;
+          }
+        } catch (error) {
+          listEl.innerHTML = '<div class="text-danger small">Unable to load comments.</div>';
+        }
+      };
+
+      const handleLikeClick = async (button) => {
+        const postId = button.dataset.postId;
+        const formData = new URLSearchParams();
+        formData.append('post_id', postId);
+        button.disabled = true;
+        try {
+          const response = await fetch('api/toggle_like.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData.toString()
+          });
+          const data = await response.json();
+          if (data.success) {
+            button.dataset.liked = data.liked ? '1' : '0';
+            button.classList.toggle('liked', data.liked);
+            updateCountDisplays('[data-like-count]', postId, data.like_count);
+          }
+        } catch (error) {
+          console.error(error);
+        } finally {
+          button.disabled = false;
+        }
+      };
+
+      const toggleCommentsPanel = (button) => {
+        const postId = button.dataset.postId;
+        const panel = document.querySelector(`[data-comment-panel="${postId}"]`);
+        if (!panel) {
+          return;
+        }
+        const listEl = panel.querySelector(`[data-comments-list="${postId}"]`);
+        panel.classList.toggle('d-none');
+        if (!panel.classList.contains('d-none')) {
+          fetchComments(postId, listEl);
+        }
+      };
+
+      const handleCommentSubmit = async (form) => {
+        const postId = form.dataset.postId;
+        const input = form.querySelector('input[name="comment"]');
+        if (!input || input.value.trim() === '') {
+          return;
+        }
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const formData = new URLSearchParams();
+        formData.append('post_id', postId);
+        formData.append('comment', input.value.trim());
+        submitBtn.disabled = true;
+        try {
+          const response = await fetch('api/add_comment.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData.toString()
+          });
+          const data = await response.json();
+          if (data.success) {
+            input.value = '';
+            const panel = document.querySelector(`[data-comment-panel="${postId}"]`);
+            if (panel && !panel.classList.contains('d-none')) {
+              const listEl = panel.querySelector(`[data-comments-list="${postId}"]`);
+              fetchComments(postId, listEl);
+            } else {
+              updateCountDisplays('[data-comment-count]', postId, data.comment_count);
+            }
+          }
+        } catch (error) {
+          console.error(error);
+        } finally {
+          submitBtn.disabled = false;
+        }
+      };
+
+      feed?.addEventListener('click', (event) => {
+        const likeBtn = event.target.closest('.like-toggle');
+        if (likeBtn) {
+          event.preventDefault();
+          handleLikeClick(likeBtn);
+          return;
+        }
+
+        const commentToggle = event.target.closest('.comment-toggle');
+        if (commentToggle) {
+          event.preventDefault();
+          toggleCommentsPanel(commentToggle);
+        }
+      });
+
+      document.querySelectorAll('.comment-form').forEach((form) => {
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          handleCommentSubmit(form);
+        });
+      });
+    });
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
 </body>
 
 </html>

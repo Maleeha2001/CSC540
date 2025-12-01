@@ -83,6 +83,11 @@ include_once "../php/session.php";
             padding: 1.5rem;
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
+
+        #media_dropzone.dropzone-active {
+            border-color: var(--primary-color);
+            background-color: rgba(19, 164, 236, 0.1);
+        }
     </style>
 </head>
 
@@ -150,14 +155,30 @@ $tz_query = $db_connection->query("SELECT timezone_id, tz_name, utc_offset FROM 
 
                         <div class="card-section mb-4 text-center">
                             <h5 class="fw-bold mb-2">Add Photos or Videos</h5>
-                            <label class="w-100 p-4 border border-secondary border-dashed rounded text-center" style="cursor:pointer;">
+                            <label id="media_dropzone" class="w-100 p-4 border border-secondary border-dashed rounded text-center" style="cursor:pointer;">
                                 <span class="material-symbols-outlined text-primary fs-1">upload_file </span>
-                                <p class="mt-2">Click to upload file size 5 MB</p>
-                                <input type="file" name="media" accept="image/*,video/*" class="d-none">
+                                <p class="mt-2 mb-1">Click or drop a file (max 5 MB)</p>
+                                <p class="small text-secondary mb-0" id="media_status" data-default-text="No file selected yet.">
+                                    No file selected yet.
+                                </p>
+                                <input type="file" name="media" accept="image/*,video/*" class="d-none" id="media_input">
                             </label>
                         </div>
 
                         <div class="card-section mb-4">
+                            <input type="hidden" name="is_sealed" id="is_sealed_field" value="1">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h5 class="fw-bold mb-0">Seal this TimeCap?</h5>
+                                <div class="form-check form-switch m-0">
+                                    <input class="form-check-input" type="checkbox" id="is_sealed_toggle" role="switch" checked>
+                                </div>
+                            </div>
+                            <p class="text-secondary small mb-0">
+                                Sealed capsules stay hidden until the unlock date. Unsealed capsules post immediately.
+                            </p>
+                        </div>
+
+                        <div class="card-section mb-4" id="scheduleSection">
                             <h5 class="fw-bold mb-3">Set Unlock Date</h5>
 
                             <label class="form-label">Date</label>
@@ -176,7 +197,7 @@ $tz_query = $db_connection->query("SELECT timezone_id, tz_name, utc_offset FROM 
 
                     <a href="dashboard.php" class="btn btn-outline-light px-4">Cancel</a>
 
-                    <button type="submit" name="submit" class="btn btn-primary px-5">
+                    <button type="submit" name="submit" class="btn btn-primary px-5" id="primaryActionButton">
                         Seal TimeCap
                     </button>
 
@@ -200,22 +221,151 @@ $tz_query = $db_connection->query("SELECT timezone_id, tz_name, utc_offset FROM 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
 <script>
-    // Date Picker (Shows MM/DD/YYYY but submits YYYY-MM-DD)
-    flatpickr("#unlock_date", {
-        altInput: true,
-        altFormat: "m/d/Y",     // User sees (12/03/2025)
-        dateFormat: "Y-m-d",    // PHP/MySQL receives (2025-12-03)
-        minDate: "today",
-    });
+    document.addEventListener('DOMContentLoaded', () => {
+        const datePicker = flatpickr("#unlock_date", {
+            altInput: true,
+            altFormat: "m/d/Y",
+            dateFormat: "Y-m-d",
+            minDate: "today",
+        });
 
-    // Time Picker
-    flatpickr("#unlock_time", {
-        enableTime: true,
-        noCalendar: true,
-        altInput: true,
-        altFormat: "h:i K",     // Shows user-friendly 08:30 PM
-        dateFormat: "H:i:S",    // Submits 20:30:00 to MySQL
-        time_24hr: false,       // Change to true if you prefer 24hr format
+        const timePicker = flatpickr("#unlock_time", {
+            enableTime: true,
+            noCalendar: true,
+            altInput: true,
+            altFormat: "h:i K",
+            dateFormat: "H:i:S",
+            time_24hr: false,
+        });
+
+        const sealToggle = document.getElementById('is_sealed_toggle');
+        const sealField = document.getElementById('is_sealed_field');
+        const scheduleSection = document.getElementById('scheduleSection');
+        const dateInput = document.getElementById('unlock_date');
+        const timeInput = document.getElementById('unlock_time');
+        const submitButton = document.getElementById('primaryActionButton');
+        const mediaInput = document.getElementById('media_input');
+        const mediaStatus = document.getElementById('media_status');
+        const mediaDropzone = document.getElementById('media_dropzone');
+
+        const syncSealState = () => {
+            const isSealed = sealToggle.checked;
+            sealField.value = isSealed ? '1' : '0';
+            scheduleSection.classList.toggle('d-none', !isSealed);
+            dateInput.required = isSealed;
+            timeInput.required = isSealed;
+            dateInput.disabled = !isSealed;
+            timeInput.disabled = !isSealed;
+
+            if (datePicker.altInput) {
+                datePicker.altInput.disabled = !isSealed;
+            }
+            if (timePicker.altInput) {
+                timePicker.altInput.disabled = !isSealed;
+            }
+
+            if (!isSealed) {
+                datePicker.clear();
+                timePicker.clear();
+            }
+
+            submitButton.textContent = isSealed ? 'Seal TimeCap' : 'Post TimeCap';
+        };
+
+        const attachFileStatus = () => {
+            if (!mediaInput || !mediaStatus) {
+                return;
+            }
+            const defaultText = mediaStatus.dataset.defaultText || mediaStatus.textContent;
+            const updateStatus = () => {
+                if (mediaInput.files && mediaInput.files.length > 0) {
+                    mediaStatus.textContent = mediaInput.files[0].name;
+                    mediaStatus.classList.remove('text-secondary');
+                    mediaStatus.classList.add('text-info');
+                } else {
+                    mediaStatus.textContent = defaultText;
+                    mediaStatus.classList.add('text-secondary');
+                    mediaStatus.classList.remove('text-info');
+                }
+            };
+            mediaInput.addEventListener('change', updateStatus);
+            updateStatus();
+        };
+
+        const attachDropzone = () => {
+            if (!mediaDropzone || !mediaInput) {
+                return;
+            }
+
+            const preventDefaults = (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+            };
+
+            const highlight = () => mediaDropzone.classList.add('dropzone-active');
+            const unhighlight = () => mediaDropzone.classList.remove('dropzone-active');
+
+            ['dragenter', 'dragover'].forEach((eventName) => {
+                mediaDropzone.addEventListener(eventName, (event) => {
+                    preventDefaults(event);
+                    highlight();
+                });
+            });
+
+            ['dragleave', 'dragend'].forEach((eventName) => {
+                mediaDropzone.addEventListener(eventName, (event) => {
+                    preventDefaults(event);
+                    unhighlight();
+                });
+            });
+
+            mediaDropzone.addEventListener('drop', (event) => {
+                preventDefaults(event);
+                const droppedFiles = event.dataTransfer?.files;
+                if (!droppedFiles || droppedFiles.length === 0) {
+                    unhighlight();
+                    return;
+                }
+
+                let assigned = false;
+                if (typeof DataTransfer !== 'undefined') {
+                    try {
+                        const dataTransfer = new DataTransfer();
+                        Array.from(droppedFiles).forEach((file) => dataTransfer.items.add(file));
+                        mediaInput.files = dataTransfer.files;
+                        assigned = true;
+                    } catch (error) {
+                        assigned = false;
+                    }
+                }
+
+                if (!assigned) {
+                    try {
+                        mediaInput.files = droppedFiles;
+                        assigned = true;
+                    } catch (error) {
+                        assigned = false;
+                    }
+                }
+
+                if (assigned) {
+                    mediaInput.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                unhighlight();
+            });
+        };
+
+        document.addEventListener('dragover', (event) => event.preventDefault());
+        document.addEventListener('drop', (event) => {
+            if (!mediaDropzone || !mediaDropzone.contains(event.target)) {
+                event.preventDefault();
+            }
+        });
+
+        sealToggle.addEventListener('change', syncSealState);
+        attachFileStatus();
+        attachDropzone();
+        syncSealState();
     });
 </script>
 

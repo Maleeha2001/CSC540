@@ -139,8 +139,11 @@ $tagValue = implode(', ', $tag_names);
                             <?php endif; ?>
                             <label class="w-100 p-4 border border-secondary border-dashed rounded text-center mt-3" style="cursor:pointer;">
                                 <span class="material-symbols-outlined text-primary fs-1">upload_file</span>
-                                <p class="mt-2">Upload new media (optional)</p>
-                                <input type="file" name="media" accept="image/*,video/*" class="d-none">
+                                <p class="mt-2 mb-1">Upload new media (optional)</p>
+                                <p class="small text-secondary mb-0" id="edit_media_status" data-default-text="No file selected yet.">
+                                    No file selected yet.
+                                </p>
+                                <input type="file" name="media" accept="image/*,video/*" class="d-none" id="edit_media_input">
                             </label>
                         </div>
 
@@ -175,6 +178,32 @@ $tagValue = implode(', ', $tag_names);
     <footer class="text-center py-3 mt-auto">
         <?php include_once "../include/footer.php"; ?>
     </footer>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const mediaInput = document.getElementById('edit_media_input');
+            const mediaStatus = document.getElementById('edit_media_status');
+
+            if (!mediaInput || !mediaStatus) {
+                return;
+            }
+
+            const defaultText = mediaStatus.dataset.defaultText || mediaStatus.textContent;
+            const updateStatus = () => {
+                if (mediaInput.files && mediaInput.files.length > 0) {
+                    mediaStatus.textContent = mediaInput.files[0].name;
+                    mediaStatus.classList.remove('text-secondary');
+                    mediaStatus.classList.add('text-info');
+                } else {
+                    mediaStatus.textContent = defaultText;
+                    mediaStatus.classList.add('text-secondary');
+                    mediaStatus.classList.remove('text-info');
+                }
+            };
+
+            mediaInput.addEventListener('change', updateStatus);
+            updateStatus();
+        });
+    </script>
 </body>
 
 </html>

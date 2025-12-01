@@ -21,20 +21,33 @@ $tags = trim($_POST['tags'] ?? '');
 $date = trim($_POST['unlock_date'] ?? '');
 $time = trim($_POST['unlock_time'] ?? '');
 $timezone_id = trim($_POST['timezone_id'] ?? '1');
+$is_sealed = ($_POST['is_sealed'] ?? '1') === '1';
 $media_path = null;
 
 // Basic validation
-if ($title === '' || $message === '' || $date === '' || $time === '') {
+if ($title === '' || $message === '') {
     die("Missing required fields.");
 }
 
-// Convert date + time into DATETIME format
-$dt = date_create_from_format('Y-m-d H:i', "$date $time") ?: 
-      date_create_from_format('Y-m-d H:i:s', "$date $time");
-if ($dt === false) {
-    die("Invalid date/time format.");
+$now = new DateTime();
+
+if ($is_sealed) {
+    if ($date === '' || $time === '') {
+        die("Missing required fields.");
+    }
+
+    // Convert date + time into DATETIME format
+    $dt = date_create_from_format('Y-m-d H:i', "$date $time") ?:
+          date_create_from_format('Y-m-d H:i:s', "$date $time");
+    if ($dt === false) {
+        die("Invalid date/time format.");
+    }
+    $unlock_datetime = $dt->format('Y-m-d H:i:s');
+    $timer_status = ($now >= new DateTime($unlock_datetime)) ? 'unlocked' : 'scheduled';
+} else {
+    $unlock_datetime = $now->format('Y-m-d H:i:s');
+    $timer_status = 'unlocked';
 }
-$unlock_datetime = $dt->format('Y-m-d H:i:s');
 
 // Handle optional media upload
 if (!empty($_FILES['media']['name']) && is_uploaded_file($_FILES['media']['tmp_name'])) {
@@ -87,9 +100,9 @@ $stmt1->close();
 // Insert into post_timers table (your actual table)
 $stmt2 = $db_connection->prepare("
     INSERT INTO post_timers (post_id, unlock_at, timezone_id, status)
-    VALUES (?, ?, ?, 'scheduled')
+    VALUES (?, ?, ?, ?)
 ");
-$stmt2->bind_param("isi", $post_id, $unlock_datetime, $timezone_id);
+$stmt2->bind_param("isis", $post_id, $unlock_datetime, $timezone_id, $timer_status);
 $stmt2->execute();
 $stmt2->close();
 
