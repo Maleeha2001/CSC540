@@ -9,6 +9,7 @@ include_once (realpath(dirname(__FILE__, 2).'/php/session.php'));
 include_once (realpath(dirname(__FILE__, 2).'/php/path.php'));
 include_once (ROOT_SRC_PATH .'/check_admin.php');
 include_once (ROOT_PATH . '/php/config.php');
+include_once (ROOT_PATH . '/php/post_interactions.php');
 
 $action = $_POST['action'] ?? '';
 
@@ -162,6 +163,27 @@ if ($action === 'delete') {
         $stmt->bind_param("i", $user_id);
         $stmt->execute();
         $stmt->close();
+    }
+
+    // Remove any comments authored by this user (handles varying column names).
+    if (ensure_comments_table($db_connection)) {
+        $comment_info = get_comments_column_info($db_connection);
+        $author_columns = $comment_info['user_columns'] ?? [];
+        if (empty($author_columns)) {
+            $author_columns[] = 'user_id';
+        }
+        $author_columns = array_unique(array_filter($author_columns));
+        foreach ($author_columns as $column) {
+            if (!preg_match('/^[a-zA-Z0-9_]+$/', $column)) {
+                continue;
+            }
+            $sql = "DELETE FROM comments WHERE `{$column}` = ?";
+            if ($stmt = $db_connection->prepare($sql)) {
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
     }
 
     // Remove notifications for the user to satisfy FK constraint.
