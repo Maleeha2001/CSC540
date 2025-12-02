@@ -152,10 +152,10 @@ $states = [
       <form action="./php/create_account.php" method="post">
         <div class="row">
           <div class="col-md-6 mb-3">
-            <input type="text" class="form-control" name="first_name" placeholder="First Name" required>
+            <input type="text" class="form-control" name="first_name" placeholder="First Name" pattern="[A-Za-z\\s'-]+" title="Letters, spaces, apostrophes, and hyphens only" required>
           </div>
           <div class="col-md-6 mb-3">
-            <input type="text" class="form-control" name="last_name" placeholder="Last Name" required>
+            <input type="text" class="form-control" name="last_name" placeholder="Last Name" pattern="[A-Za-z\\s'-]+" title="Letters, spaces, apostrophes, and hyphens only" required>
           </div>
         </div>
 

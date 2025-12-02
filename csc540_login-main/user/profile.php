@@ -44,6 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($formValues['first_name'] === '' || $formValues['last_name'] === '' || $formValues['username'] === '') {
         $feedback['error'] = 'First name, last name, and username are required.';
+    } elseif (preg_match('/\d/', $formValues['first_name']) || preg_match('/\d/', $formValues['last_name'])) {
+        $feedback['error'] = 'Names cannot contain numbers.';
     } else {
         $check_stmt = $db_connection->prepare("
             SELECT user_id FROM users

@@ -27,6 +27,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         echo "All fields are required.";
         exit();
     }
+
+    $nameHasDigits = preg_match('/\d/', $first_name) || preg_match('/\d/', $last_name);
+    if ($nameHasDigits) {
+        echo "First and last name cannot contain numbers.";
+        exit();
+    }
     if ($password !== $confirm_password) {
         echo "Passwords do not match.";
         exit();

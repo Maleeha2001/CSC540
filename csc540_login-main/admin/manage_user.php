@@ -32,6 +32,10 @@ if ($action === 'create') {
         redirect_with_message("All fields are required.");
     }
 
+    if (preg_match('/\d/', $first) || preg_match('/\d/', $last)) {
+        redirect_with_message("Names cannot contain numbers.");
+    }
+
     $hash = password_hash($password, PASSWORD_DEFAULT);
     $stmt = $db_connection->prepare("
         INSERT INTO users (first_name, last_name, email, username, password_hash, role_id, status)
@@ -57,6 +61,10 @@ if ($action === 'update') {
 
     if ($user_id <= 0 || $first === '' || $last === '' || $email === '' || $username === '') {
         redirect_with_message("Invalid form submission.");
+    }
+
+    if (preg_match('/\d/', $first) || preg_match('/\d/', $last)) {
+        redirect_with_message("Names cannot contain numbers.");
     }
 
     if ($password !== '') {
@@ -178,6 +186,20 @@ if ($action === 'delete') {
                 continue;
             }
             $sql = "DELETE FROM comments WHERE `{$column}` = ?";
+            if ($stmt = $db_connection->prepare($sql)) {
+                $stmt->bind_param("i", $user_id);
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
+    }
+
+    // Remove reactions authored by this user to satisfy FK constraints.
+    if (ensure_reactions_table($db_connection)) {
+        $reaction_info = get_reactions_column_info($db_connection);
+        $user_column = $reaction_info['user_column'] ?? 'user_id';
+        if ($user_column && preg_match('/^[a-zA-Z0-9_]+$/', $user_column)) {
+            $sql = "DELETE FROM reactions WHERE `{$user_column}` = ?";
             if ($stmt = $db_connection->prepare($sql)) {
                 $stmt->bind_param("i", $user_id);
                 $stmt->execute();

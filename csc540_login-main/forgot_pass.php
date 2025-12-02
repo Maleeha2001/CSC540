@@ -4,6 +4,9 @@
 //======================================================================
 
 session_start();
+$recoveryError = $_SESSION['recovery_error'] ?? null;
+$recoverySuccess = $_SESSION['recovery_success'] ?? null;
+unset($_SESSION['recovery_error'], $_SESSION['recovery_success']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -91,7 +94,7 @@ session_start();
 
     <!-- Recovery Form Card -->
     <div class="card col-11 col-sm-8 col-md-5">
-      <form action="./db/recovery.php" method="post">
+      <form action="./php/recovery.php" method="post">
         <div class="mb-3">
           <label for="email" class="form-label fw-semibold text-light">Email Address</label>
           <input 
@@ -103,11 +106,12 @@ session_start();
             required>
         </div>
 
-        <?php
-          if (isset($error)) {
-            echo '<div class="alert alert-danger mt-3" role="alert">' . $error . '</div>';
-          }
-        ?>
+        <?php if (!empty($recoveryError)) : ?>
+          <div class="alert alert-danger mt-3" role="alert"><?php echo htmlspecialchars($recoveryError); ?></div>
+        <?php endif; ?>
+        <?php if (!empty($recoverySuccess)) : ?>
+          <div class="alert alert-success mt-3" role="alert"><?php echo htmlspecialchars($recoverySuccess); ?></div>
+        <?php endif; ?>
 
         <button type="submit" class="btn btn-primary w-100 mt-3">Next</button>
       </form>
