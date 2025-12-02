@@ -18,7 +18,17 @@ if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] != 2) {
 
 ensure_reactions_table($db_connection);
 ensure_comments_table($db_connection);
+ensure_followers_table($db_connection);
+
 $viewer_id = (int)$_SESSION['user_id'];
+$followColumns = get_followers_column_info($db_connection);
+$followTable = $followColumns['table'] ?? null;
+$followFollowerColumn = null;
+$followFolloweeColumn = null;
+if ($followTable && !empty($followColumns['follower_column']) && !empty($followColumns['followee_column'])) {
+    $followFollowerColumn = $followColumns['follower_column'];
+    $followFolloweeColumn = $followColumns['followee_column'];
+}
 
 $reactionColumns = get_reactions_column_info($db_connection);
 $reactionPostColumn = $reactionColumns['post_column'] ? "`{$reactionColumns['post_column']}`" : null;
@@ -57,6 +67,25 @@ if ($reactionPostColumn && $reactionUserColumn) {
     ";
     $postSqlParamTypes .= 'i';
     $postSqlParams[] = $viewer_id;
+}
+
+$publicCondition = "(p.privacy = 'public' AND p.unlock_at <= NOW())";
+$followWhereClause = '';
+if ($followTable && !empty($followFollowerColumn) && !empty($followFolloweeColumn) && $viewer_id > 0) {
+    $followTableSql = "`{$followTable}`";
+    $followFollowerExpr = "f.`{$followFollowerColumn}`";
+    $followFolloweeExpr = "f.`{$followFolloweeColumn}`";
+    $followWhereClause = "(p.unlock_at <= NOW() AND EXISTS (
+        SELECT 1 FROM {$followTableSql} f
+        WHERE {$followFollowerExpr} = ?
+          AND {$followFolloweeExpr} = p.user_id
+    ))";
+    $postSqlParamTypes .= 'i';
+    $postSqlParams[] = $viewer_id;
+}
+$combinedWhere = $publicCondition;
+if ($followWhereClause !== '') {
+    $combinedWhere = "({$publicCondition} OR {$followWhereClause})";
 }
 
 function format_feed_timestamp($dateString) {
@@ -110,7 +139,7 @@ $post_sql = "
         FROM comments
         GROUP BY post_id
     ) c ON c.post_id = p.post_id
-    WHERE p.privacy = 'public' AND p.unlock_at <= NOW()
+    WHERE {$combinedWhere}
     ORDER BY p.unlock_at DESC, p.created_at DESC
     LIMIT 25
 ";
@@ -283,13 +312,13 @@ if ($post_stmt) {
             $metaLine = implode(' · ', array_filter([$authorHandle, $relativeTime]));
         ?>
         <div class="card mb-4 p-4 post-card" data-post-id="<?= $post['post_id']; ?>">
-          <div class="d-flex align-items-center mb-3">
+          <a href="profile_view.php?id=<?= $post['user_id']; ?>" class="d-flex align-items-center mb-3 text-decoration-none text-white">
             <img src="<?= htmlspecialchars($avatar); ?>" class="rounded-circle me-3" style="width:48px;height:48px;object-fit:cover;" alt="author avatar">
             <div>
-              <p class="fw-bold mb-0"><?= htmlspecialchars($authorName ?: 'TimeCap User'); ?></p>
+              <p class="fw-bold mb-0 text-white"><?= htmlspecialchars($authorName ?: 'TimeCap User'); ?></p>
               <small class="text-secondary"><?= htmlspecialchars($metaLine ?: $relativeTime); ?></small>
             </div>
-          </div>
+          </a>
           <?php if (!empty($mediaPath)): ?>
             <?php if (!empty($post['has_media']) && preg_match('/\.mp4$/i', $post['media_path'])): ?>
               <video class="rounded mb-3 w-100" controls preload="metadata">
@@ -476,10 +505,10 @@ if ($post_stmt) {
           const buttonLabel = user.is_following ? 'Following' : 'Follow';
           return `
             <div class="search-result-item">
-              <div>
+              <a href="profile_view.php?id=${user.user_id}" class="text-decoration-none text-white flex-grow-1">
                 <div class="fw-semibold">${escapeHtml(displayName)}</div>
                 <div class="text-secondary small">@${escapeHtml(user.username)}</div>
-              </div>
+              </a>
               <button type="button"
                       class="btn btn-sm ${buttonClass} follow-toggle"
                       data-user-id="${user.user_id}"
@@ -528,15 +557,18 @@ if ($post_stmt) {
             body: formData.toString()
           });
           const data = await response.json();
-          if (data.success) {
+        if (data.success) {
             const isFollowing = data.is_following ? '1' : '0';
             button.dataset.following = isFollowing;
             button.textContent = data.is_following ? 'Following' : 'Follow';
             button.classList.toggle('btn-outline-primary', !data.is_following);
             button.classList.toggle('btn-outline-light', !!data.is_following);
-          } else if (data.message) {
+            if (data.is_following) {
+              window.location.reload();
+            }
+        } else if (data.message) {
             alert(data.message);
-          }
+        }
         } catch (error) {
           console.error(error);
         } finally {

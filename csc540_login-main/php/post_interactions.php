@@ -101,6 +101,73 @@ function match_column($columns, array $candidates) {
     return $matches[0] ?? null;
 }
 
+function get_primary_key_column($connection, $table) {
+    static $cache = [];
+    if (isset($cache[$table])) {
+        return $cache[$table];
+    }
+    if (!defined('DB_NAME')) {
+        return $cache[$table] = null;
+    }
+    $sql = "
+        SELECT COLUMN_NAME
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = ?
+          AND TABLE_NAME = ?
+          AND COLUMN_KEY = 'PRI'
+        LIMIT 1
+    ";
+    if ($stmt = $connection->prepare($sql)) {
+        $db = DB_NAME;
+        $stmt->bind_param("ss", $db, $table);
+        $stmt->execute();
+        $stmt->bind_result($column_name);
+        if ($stmt->fetch()) {
+            $cache[$table] = $column_name;
+        } else {
+            $cache[$table] = null;
+        }
+        $stmt->close();
+    } else {
+        $cache[$table] = null;
+    }
+    return $cache[$table];
+}
+
+function get_foreign_key_column($connection, $table, $referenced_table) {
+    static $cache = [];
+    $cache_key = "{$table}:{$referenced_table}";
+    if (isset($cache[$cache_key])) {
+        return $cache[$cache_key];
+    }
+    if (!defined('DB_NAME')) {
+        return $cache[$cache_key] = null;
+    }
+    $sql = "
+        SELECT COLUMN_NAME
+        FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = ?
+          AND TABLE_NAME = ?
+          AND REFERENCED_TABLE_NAME = ?
+        LIMIT 1
+    ";
+    if ($stmt = $connection->prepare($sql)) {
+        $db = DB_NAME;
+        $stmt->bind_param("sss", $db, $table, $referenced_table);
+        $stmt->execute();
+        $stmt->bind_result($column_name);
+        if ($stmt->fetch()) {
+            $cache[$cache_key] = $column_name;
+        } else {
+            $cache[$cache_key] = null;
+        }
+        $stmt->close();
+    } else {
+        $cache[$cache_key] = null;
+    }
+    return $cache[$cache_key];
+}
+
 /**
  * Determine available columns for the comments table.
  */
@@ -122,11 +189,37 @@ function get_comments_column_info($connection) {
  */
 function get_reactions_column_info($connection) {
     $columns = get_table_columns($connection, 'reactions');
+    if (empty($columns)) {
+        return [
+            'primary_key' => null,
+            'post_column' => null,
+            'user_column' => null,
+            'type_column' => null
+        ];
+    }
+
+    $primary = get_primary_key_column($connection, 'reactions');
+    if (!$primary) {
+        $primary = $columns[0]['Field'] ?? null;
+    }
+
+    $post_column = get_foreign_key_column($connection, 'reactions', 'posts');
+    $user_column = get_foreign_key_column($connection, 'reactions', 'users');
+
+    if (!$post_column) {
+        $post_column = match_column($columns, ['post_id', 'postid', 'capsule_id', 'capsuleid', 'timecap_id', 'timecapid', 'post']);
+    }
+    if (!$user_column) {
+        $user_column = match_column($columns, ['user_id', 'userid', 'author_id', 'authorid', 'member_id', 'profile_id', 'user', 'author']);
+    }
+
+    $type_column = match_column($columns, ['reaction_type', 'reactiontype', 'type', 'reaction', 'status', 'kind', 'flag']);
+
     return [
-        'primary_key' => match_column($columns, ['reaction_id', 'reactionid', 'like_id', 'likeid', 'id']),
-        'post_column' => match_column($columns, ['post_id', 'postid', 'capsule_id', 'capsuleid', 'timecap_id']),
-        'user_column' => match_column($columns, ['user_id', 'userid', 'author_id', 'authorid', 'member_id', 'profile_id']),
-        'type_column' => match_column($columns, ['reaction_type', 'reactiontype', 'type', 'reaction', 'status'])
+        'primary_key' => $primary,
+        'post_column' => $post_column,
+        'user_column' => $user_column,
+        'type_column' => $type_column
     ];
 }
 

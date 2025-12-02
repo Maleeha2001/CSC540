@@ -313,12 +313,12 @@ unset($_SESSION['dashboard_flash']);
           <ul class="list-group list-group-flush">
             <?php foreach ($followingUsers as $followed): ?>
               <li class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0">
-                <div>
+                <a href="profile_view.php?id=<?= $followed['user_id']; ?>" class="text-decoration-none text-white">
                   <div class="fw-semibold">
                     <?= htmlspecialchars(trim(($followed['first_name'] ?? '') . ' ' . ($followed['last_name'] ?? '')) ?: $followed['username']); ?>
                   </div>
                   <div class="text-secondary small">@<?= htmlspecialchars($followed['username']); ?></div>
-                </div>
+                </a>
                 <span class="badge bg-dark text-uppercase">Following</span>
               </li>
             <?php endforeach; ?>
