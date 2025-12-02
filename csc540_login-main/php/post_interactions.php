@@ -422,17 +422,26 @@ function get_followers_column_info($connection) {
         return $info;
     }
 
-    $follower_col = match_column($columns, [
-        'follower_id', 'followerid', 'follower', 'user_id', 'userid', 'member_id'
-    ]);
-
-    $remaining = array_values(array_filter($columns, function ($row) use ($follower_col) {
-        return $row['Field'] !== $follower_col;
-    }));
-
-    $followee_col = match_column($remaining, [
-        'followee_id', 'followeeid', 'followed_id', 'followedid', 'target_user_id', 'targetid', 'follow_user_id'
-    ]);
+    $follower_col = get_foreign_key_column($connection, 'followers', 'users');
+    $followee_col = null;
+    if ($follower_col) {
+        $remaining = array_values(array_filter($columns, function ($row) use ($follower_col) {
+            return $row['Field'] !== $follower_col;
+        }));
+        $followee_col = match_column($remaining, [
+            'followee_id', 'followeeid', 'followed_id', 'followedid', 'target_user_id', 'targetid', 'follow_user_id', 'followee', 'followed'
+        ]);
+    } else {
+        $follower_col = match_column($columns, [
+            'follower_id', 'followerid', 'follower', 'user_id', 'userid', 'member_id'
+        ]);
+        $remaining = array_values(array_filter($columns, function ($row) use ($follower_col) {
+            return $row['Field'] !== $follower_col;
+        }));
+        $followee_col = match_column($remaining, [
+            'followee_id', 'followeeid', 'followed_id', 'followedid', 'target_user_id', 'targetid', 'follow_user_id'
+        ]);
+    }
 
     if (!$follower_col || !$followee_col) {
         $info = null;

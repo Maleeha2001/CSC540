@@ -15,6 +15,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $phone = $_POST['phone'];
     $username = $_POST['username'];
     $password = $_POST['password'];
+    $confirm_password = $_POST['confirm_password'] ?? '';
     $street = $_POST['street'];
     $street_additional = $_POST['street_additional'];
     $city = $_POST['city'];
@@ -24,6 +25,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Basic validation
     if (empty($first_name) || empty($last_name) || empty($email) || empty($phone) || empty($username) || empty($password)) {
         echo "All fields are required.";
+        exit();
+    }
+    if ($password !== $confirm_password) {
+        echo "Passwords do not match.";
         exit();
     }
 

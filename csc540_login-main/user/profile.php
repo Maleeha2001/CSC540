@@ -72,15 +72,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     );
                     if ($update_stmt->execute()) {
                         $bioSaved = save_user_bio($db_connection, $user_id, $bioValue);
-                        if ($bioSaved) {
-                            $_SESSION['user_first'] = $formValues['first_name'];
-                            $_SESSION['user_name'] = $formValues['username'];
-                            $_SESSION['login_user'] = $formValues['username'];
-                            $_SESSION['dashboard_flash'] = 'Profile updated successfully.';
-                            header("Location: dashboard.php");
-                            exit();
+                        if (!$bioSaved) {
+                            $feedback['error'] = 'Profile saved but we could not update your bio.';
                         }
-                        $feedback['error'] = 'Profile saved but we could not update your bio.';
+                        $_SESSION['user_first'] = $formValues['first_name'];
+                        $_SESSION['user_name'] = $formValues['username'];
+                        $_SESSION['login_user'] = $formValues['username'];
+                        $_SESSION['dashboard_flash'] = 'Profile updated successfully.';
+                        header("Location: dashboard.php");
+                        exit();
                     } else {
                         $feedback['error'] = 'Unable to save your profile right now. Please try again.';
                     }

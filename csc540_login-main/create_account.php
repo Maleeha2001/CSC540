@@ -172,6 +172,9 @@ $states = [
           <input type="password" class="form-control" name="password" placeholder="Password" required>
         </div>
         <div class="mb-3">
+          <input type="password" class="form-control" name="confirm_password" placeholder="Confirm Password" required>
+        </div>
+        <div class="mb-3">
           <input type="text" class="form-control" name="street" placeholder="Street Address">
         </div>
         <div class="mb-3">
