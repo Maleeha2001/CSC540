@@ -131,6 +131,45 @@ if ($action === 'delete') {
         $delete_post->close();
     }
 
+    // Remove follower relationships referencing this user (handles varying column names).
+    $fk_columns = [];
+    $fk_sql = "
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = ?
+          AND TABLE_NAME = 'followers'
+          AND REFERENCED_TABLE_NAME = 'users'
+          AND REFERENCED_COLUMN_NAME = 'user_id'
+    ";
+    if ($fk_stmt = $db_connection->prepare($fk_sql)) {
+        $db_name = DB_NAME;
+        $fk_stmt->bind_param("s", $db_name);
+        $fk_stmt->execute();
+        $fk_stmt->bind_result($column_name);
+        while ($fk_stmt->fetch()) {
+            if ($column_name && preg_match('/^[a-zA-Z0-9_]+$/', $column_name)) {
+                $fk_columns[] = $column_name;
+            }
+        }
+        $fk_stmt->close();
+    }
+    if (empty($fk_columns)) {
+        $fk_columns[] = 'followee_id';
+    }
+    foreach ($fk_columns as $column) {
+        $sql = "DELETE FROM followers WHERE `{$column}` = ?";
+        $stmt = $db_connection->prepare($sql);
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    // Remove notifications for the user to satisfy FK constraint.
+    $delete_notifications = $db_connection->prepare("DELETE FROM notifications WHERE user_id = ?");
+    $delete_notifications->bind_param("i", $user_id);
+    $delete_notifications->execute();
+    $delete_notifications->close();
+
     $delete_user = $db_connection->prepare("DELETE FROM users WHERE user_id = ?");
     $delete_user->bind_param("i", $user_id);
     if ($delete_user->execute()) {

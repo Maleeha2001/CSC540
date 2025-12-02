@@ -76,6 +76,7 @@ $mediaSrc = 'https://via.placeholder.com/600x300';
 if (!empty($post['media_path'])) {
     $mediaSrc = BASE_URL . '/' . ltrim($post['media_path'], '/');
 }
+$isVideo = !empty($post['media_path']) && preg_match('/\.mp4$/i', $post['media_path']);
 
 $authorName = trim(($post['first_name'] ?? '') . ' ' . ($post['last_name'] ?? ''));
 $authorHandle = !empty($post['username']) ? '@' . $post['username'] : '';
@@ -142,11 +143,19 @@ $authorHandle = !empty($post['username']) ? '@' . $post['username'] : '';
         }
 
         .media-box {
-            background-size: cover;
-            background-position: center;
             border-radius: 12px;
-            height: 220px;
             position: relative;
+            background-color: #111e25;
+        }
+
+        .media-media {
+            width: 100%;
+            height: auto;
+            border-radius: 12px;
+            display: block;
+            max-height: 600px;
+            object-fit: contain;
+            background-color: #000;
         }
 
         .interaction-bar {
@@ -177,6 +186,15 @@ $authorHandle = !empty($post['username']) ? '@' . $post['username'] : '';
 
         .comment-item .author {
             font-weight: 600;
+        }
+
+        .locked-notice {
+            background-color: #fff3cd;
+            color: #1f252c;
+            border: 1px solid #ffd88a;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
         }
     </style>
 </head>
@@ -216,18 +234,24 @@ $authorHandle = !empty($post['username']) ? '@' . $post['username'] : '';
             <div class="container py-4">
 
                 <?php if (!empty($post['media_path'])): ?>
-                <div class="media-box mb-4" style='background-image: url("<?= htmlspecialchars($mediaSrc) ?>");'>
-                    <?php if ($post['has_media'] && preg_match('/\.mp4$/i', $post['media_path'])): ?>
-                        <span class="badge bg-dark position-absolute top-0 end-0 m-2">Video</span>
-                    <?php endif; ?>
-                </div>
+                    <div class="media-box mb-4">
+                        <?php if ($isVideo): ?>
+                            <span class="badge bg-dark position-absolute top-0 end-0 m-2">Video</span>
+                            <video class="media-media" controls>
+                                <source src="<?= htmlspecialchars($mediaSrc); ?>" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                        <?php else: ?>
+                            <img src="<?= htmlspecialchars($mediaSrc); ?>" alt="Capsule media" class="media-media">
+                        <?php endif; ?>
+                    </div>
                 <?php endif; ?>
 
                 <h2 class="fw-bold mb-1"><?= htmlspecialchars($post['title']); ?></h2>
                 <p class="accent small mb-3"><?= htmlspecialchars($statusLabel); ?> · <?= htmlspecialchars($statusAccent); ?></p>
 
                 <?php if (!$isUnlocked): ?>
-                    <div class="alert alert-warning text-dark">
+                    <div class="locked-notice alert py-3 px-4">
                         This capsule is still locked. It will unlock on <?= htmlspecialchars($unlockDateTime->format('M d, Y h:i A')); ?>.
                     </div>
                 <?php endif; ?>

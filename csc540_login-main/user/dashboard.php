@@ -16,6 +16,7 @@ $page_name = "dashboard";
 
 include_once "../php/session.php";
 include_once "../php/user_profile_helpers.php";
+include_once "../php/post_interactions.php";
 
 /**
  * Lightweight cache for information_schema lookups.
@@ -106,8 +107,11 @@ function count_relations($connection, $user_id, $candidates) {
 
 $user_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
 
-$followersCount = 0; // Following system not implemented yet
-$followingCount = 0;
+ensure_followers_table($db_connection);
+$followTotals = get_follow_totals($db_connection, $user_id);
+$followersCount = $followTotals['followers'] ?? 0;
+$followingCount = $followTotals['following'] ?? 0;
+$followingUsers = get_following_users($db_connection, $user_id, 6);
 
 $capsulesCount = count_relations($db_connection, $user_id, [
     'posts' => ['user_id']
@@ -233,6 +237,12 @@ unset($_SESSION['dashboard_flash']);
             text-align: center;
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
+
+        .following-card {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
   </style>
 </head>
 
@@ -288,6 +298,34 @@ unset($_SESSION['dashboard_flash']);
           <p class="text-secondary mb-0">Following</p>
         </div>
       </div>
+
+      <div class="card mb-4 p-4 following-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h4 class="fw-bold mb-0">You're following</h4>
+            <p class="text-secondary small mb-0">People you follow appear here. Use the Feed search to discover more.</p>
+          </div>
+          <span class="badge bg-primary rounded-pill"><?= number_format($followingCount); ?></span>
+        </div>
+        <?php if (empty($followingUsers)): ?>
+          <p class="text-secondary mb-0">You aren't following anyone yet.</p>
+        <?php else: ?>
+          <ul class="list-group list-group-flush">
+            <?php foreach ($followingUsers as $followed): ?>
+              <li class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0">
+                <div>
+                  <div class="fw-semibold">
+                    <?= htmlspecialchars(trim(($followed['first_name'] ?? '') . ' ' . ($followed['last_name'] ?? '')) ?: $followed['username']); ?>
+                  </div>
+                  <div class="text-secondary small">@<?= htmlspecialchars($followed['username']); ?></div>
+                </div>
+                <span class="badge bg-dark text-uppercase">Following</span>
+              </li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+      </div>
+
       <header class="navbar sticky-top px-4 py-3">
         <div class="d-flex justify-content-between align-items-center w-100">
           <h2 class="fw-bold mb-0 text-primary">My Time Capsules</h2>

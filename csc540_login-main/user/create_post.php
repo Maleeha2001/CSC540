@@ -185,7 +185,17 @@ $tz_query = $db_connection->query("SELECT timezone_id, tz_name, utc_offset FROM 
                             <input type="text" id="unlock_date" name="unlock_date" class="form-control mb-3" required>
 
                             <label class="form-label">Time</label>
-                            <input type="text" id="unlock_time" name="unlock_time" class="form-control" required>
+                            <input
+                                type="text"
+                                id="unlock_time"
+                                name="unlock_time"
+                                class="form-control"
+                                inputmode="numeric"
+                                pattern="^([01]\d|2[0-3]):[0-5]\d$"
+                                maxlength="5"
+                                placeholder="HH:MM"
+                                required
+                            >
 
                         </div>
 
@@ -234,8 +244,10 @@ $tz_query = $db_connection->query("SELECT timezone_id, tz_name, utc_offset FROM 
             noCalendar: true,
             altInput: true,
             altFormat: "h:i K",
-            dateFormat: "H:i:S",
+            dateFormat: "H:i",
             time_24hr: false,
+            minuteIncrement: 5,
+            allowInput: false,
         });
 
         const sealToggle = document.getElementById('is_sealed_toggle');

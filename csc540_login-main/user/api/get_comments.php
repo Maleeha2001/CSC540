@@ -1,12 +1,10 @@
 <?php
-require_once(realpath(dirname(__FILE__) . '/../../php/session.php'));
-require_once(realpath(dirname(__FILE__) . '/../../php/config.php'));
-require_once(realpath(dirname(__FILE__) . '/../../php/path.php'));
+require_once(realpath(dirname(__FILE__) . '/../../php/api_auth.php'));
 require_once(realpath(dirname(__FILE__) . '/../../php/post_interactions.php'));
 
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['user_id'])) {
+if (!api_ensure_authenticated_user($db_connection)) {
     echo json_encode(['success' => false, 'message' => 'Not authenticated.']);
     exit();
 }

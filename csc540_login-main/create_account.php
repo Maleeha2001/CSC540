@@ -6,6 +6,59 @@ include_once(realpath(dirname(__FILE__).'/php/path.php'));
 
 $page_name = "create_account";
 session_start();
+$states = [
+  'AL' => 'Alabama',
+  'AK' => 'Alaska',
+  'AZ' => 'Arizona',
+  'AR' => 'Arkansas',
+  'CA' => 'California',
+  'CO' => 'Colorado',
+  'CT' => 'Connecticut',
+  'DE' => 'Delaware',
+  'DC' => 'District of Columbia',
+  'FL' => 'Florida',
+  'GA' => 'Georgia',
+  'HI' => 'Hawaii',
+  'ID' => 'Idaho',
+  'IL' => 'Illinois',
+  'IN' => 'Indiana',
+  'IA' => 'Iowa',
+  'KS' => 'Kansas',
+  'KY' => 'Kentucky',
+  'LA' => 'Louisiana',
+  'ME' => 'Maine',
+  'MD' => 'Maryland',
+  'MA' => 'Massachusetts',
+  'MI' => 'Michigan',
+  'MN' => 'Minnesota',
+  'MS' => 'Mississippi',
+  'MO' => 'Missouri',
+  'MT' => 'Montana',
+  'NE' => 'Nebraska',
+  'NV' => 'Nevada',
+  'NH' => 'New Hampshire',
+  'NJ' => 'New Jersey',
+  'NM' => 'New Mexico',
+  'NY' => 'New York',
+  'NC' => 'North Carolina',
+  'ND' => 'North Dakota',
+  'OH' => 'Ohio',
+  'OK' => 'Oklahoma',
+  'OR' => 'Oregon',
+  'PA' => 'Pennsylvania',
+  'RI' => 'Rhode Island',
+  'SC' => 'South Carolina',
+  'SD' => 'South Dakota',
+  'TN' => 'Tennessee',
+  'TX' => 'Texas',
+  'UT' => 'Utah',
+  'VT' => 'Vermont',
+  'VA' => 'Virginia',
+  'WA' => 'Washington',
+  'WV' => 'West Virginia',
+  'WI' => 'Wisconsin',
+  'WY' => 'Wyoming'
+];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -129,7 +182,12 @@ session_start();
         </div>
         <div class="row">
           <div class="col-md-6 mb-3">
-            <input type="text" class="form-control" name="state" placeholder="State">
+            <select class="form-control" name="state" required>
+              <option value="" disabled selected>Select State</option>
+              <?php foreach ($states as $abbr => $state_name): ?>
+                <option value="<?php echo $abbr; ?>"><?php echo $abbr . ' - ' . $state_name; ?></option>
+              <?php endforeach; ?>
+            </select>
           </div>
           <div class="col-md-6 mb-3">
             <input type="text" class="form-control" name="zip" placeholder="Zip Code">

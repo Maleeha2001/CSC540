@@ -74,23 +74,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($insert_profile->execute()) {
             $insert_profile->close();
 
-            echo "Account created successfully! You will be redirected to the login page in <span id='countdown'>5</span> seconds...";
-            echo "<br><a href='" . BASE_URL . "/index.php'>Click here to login now</a>";
-            echo "<script>
-    let timeLeft = 5;
-    const countdown = document.getElementById('countdown');
-    
-    const timer = setInterval(function() {
-        timeLeft--;
-        countdown.textContent = timeLeft;
-        
-        if (timeLeft <= 0) {
-            clearInterval(timer);
-            window.location.href = '" . BASE_URL . "/index.php';
-        }
-    }, 1000);
-</script>";
-
+            // Redirect immediately to login, optionally flagging success.
+            header("Location: " . BASE_URL . "/index.php?signup=success");
+            exit();
         } else {
             echo "Error creating profile: " . $db_connection->error;
         }

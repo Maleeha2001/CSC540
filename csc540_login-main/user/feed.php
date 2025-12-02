@@ -18,8 +18,46 @@ if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] != 2) {
 
 ensure_reactions_table($db_connection);
 ensure_comments_table($db_connection);
-
 $viewer_id = (int)$_SESSION['user_id'];
+
+$reactionColumns = get_reactions_column_info($db_connection);
+$reactionPostColumn = $reactionColumns['post_column'] ? "`{$reactionColumns['post_column']}`" : null;
+$reactionUserColumn = $reactionColumns['user_column'] ? "`{$reactionColumns['user_column']}`" : null;
+$reactionTypeColumn = $reactionColumns['type_column'] ? "`{$reactionColumns['type_column']}`" : null;
+
+$likeJoinSql = '';
+$likeCountSelect = '0';
+if ($reactionPostColumn) {
+    $typeFilter = $reactionTypeColumn ? "WHERE {$reactionTypeColumn} = 'like'" : '';
+    $likeJoinSql = "
+    LEFT JOIN (
+        SELECT {$reactionPostColumn} AS rel_post_id, COUNT(*) AS like_count
+        FROM reactions
+        {$typeFilter}
+        GROUP BY {$reactionPostColumn}
+    ) likes ON likes.rel_post_id = p.post_id
+    ";
+    $likeCountSelect = "COALESCE(likes.like_count, 0)";
+}
+
+$userLikedSql = "0 AS user_liked";
+$postSqlParamTypes = '';
+$postSqlParams = [];
+if ($reactionPostColumn && $reactionUserColumn) {
+    $typeCondition = $reactionTypeColumn ? "AND r2.{$reactionTypeColumn} = 'like'" : '';
+    $userLikedSql = "
+        CASE 
+            WHEN EXISTS (
+                SELECT 1 FROM reactions r2
+                WHERE r2.{$reactionPostColumn} = p.post_id
+                  AND r2.{$reactionUserColumn} = ?
+                  {$typeCondition}
+            ) THEN 1 ELSE 0
+        END AS user_liked
+    ";
+    $postSqlParamTypes .= 'i';
+    $postSqlParams[] = $viewer_id;
+}
 
 function format_feed_timestamp($dateString) {
     try {
@@ -61,25 +99,12 @@ $post_sql = "
         u.first_name,
         u.last_name,
         u.username,
-        COALESCE(l.like_count, 0) AS like_count,
+        {$likeCountSelect} AS like_count,
         COALESCE(c.comment_count, 0) AS comment_count,
-        CASE 
-            WHEN EXISTS (
-                SELECT 1 
-                FROM reactions r2 
-                WHERE r2.post_id = p.post_id 
-                AND r2.user_id = ? 
-                AND r2.reaction_type = 'like'
-            ) THEN 1 ELSE 0 
-        END AS user_liked
+        {$userLikedSql}
     FROM posts p
     INNER JOIN users u ON p.user_id = u.user_id
-    LEFT JOIN (
-        SELECT post_id, COUNT(*) AS like_count
-        FROM reactions
-        WHERE reaction_type = 'like'
-        GROUP BY post_id
-    ) l ON l.post_id = p.post_id
+    {$likeJoinSql}
     LEFT JOIN (
         SELECT post_id, COUNT(*) AS comment_count
         FROM comments
@@ -93,7 +118,13 @@ $post_sql = "
 $post_stmt = $db_connection->prepare($post_sql);
 $posts = [];
 if ($post_stmt) {
-    $post_stmt->bind_param("i", $viewer_id);
+    if ($postSqlParamTypes !== '') {
+        $bindArgs = array_merge([$postSqlParamTypes], $postSqlParams);
+        foreach ($bindArgs as $idx => $value) {
+            $bindArgs[$idx] = &$bindArgs[$idx];
+        }
+        call_user_func_array([$post_stmt, 'bind_param'], $bindArgs);
+    }
     $post_stmt->execute();
     $result = $post_stmt->get_result();
     while ($result && ($row = $result->fetch_assoc())) {
@@ -189,6 +220,28 @@ if ($post_stmt) {
     .comment-item .author {
       font-weight: 600;
     }
+
+    .search-card {
+      background-color: rgba(0, 0, 0, 0.25);
+      border-radius: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .search-results {
+      min-height: 48px;
+    }
+
+    .search-result-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .search-result-item:first-child {
+      border-top: none;
+    }
   </style>
 </head>
 
@@ -206,6 +259,15 @@ if ($post_stmt) {
           <h2 class="fw-bold mb-0 text-primary">Your Feed</h2>
         </div>
       </header>
+
+      <section class="card mb-4 p-4 search-card">
+        <h4 class="fw-bold mb-3">Find creators</h4>
+        <p class="text-secondary small mb-3">Search by username to follow new friends. Following someone shows their info on your dashboard.</p>
+        <input type="text" id="userSearchInput" class="form-control mb-3" placeholder="Search by username..." autocomplete="off">
+        <div id="userSearchResults" class="search-results text-secondary small">
+          Start typing to search for people.
+        </div>
+      </section>
 
       <?php if (empty($posts)): ?>
         <div class="card mb-4 p-4 text-center text-secondary">
@@ -281,6 +343,9 @@ if ($post_stmt) {
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const feed = document.getElementById('feed');
+      const searchInput = document.getElementById('userSearchInput');
+      const searchResults = document.getElementById('userSearchResults');
+      let searchTimer = null;
 
       const updateCountDisplays = (selector, postId, newValue) => {
         document.querySelectorAll(`${selector}[data-count-for="${postId}"]`).forEach((el) => {
@@ -396,6 +461,89 @@ if ($post_stmt) {
         }
       };
 
+      const renderUserSearchResults = (users) => {
+        if (!searchResults) {
+          return;
+        }
+        if (!users || users.length === 0) {
+          searchResults.innerHTML = '<div class="text-secondary small">No users found.</div>';
+          return;
+        }
+        searchResults.innerHTML = users.map((user) => {
+          const displayName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || 'TimeCap user';
+          const following = user.is_following ? '1' : '0';
+          const buttonClass = user.is_following ? 'btn-outline-light' : 'btn-outline-primary';
+          const buttonLabel = user.is_following ? 'Following' : 'Follow';
+          return `
+            <div class="search-result-item">
+              <div>
+                <div class="fw-semibold">${escapeHtml(displayName)}</div>
+                <div class="text-secondary small">@${escapeHtml(user.username)}</div>
+              </div>
+              <button type="button"
+                      class="btn btn-sm ${buttonClass} follow-toggle"
+                      data-user-id="${user.user_id}"
+                      data-following="${following}">
+                ${buttonLabel}
+              </button>
+            </div>
+          `;
+        }).join('');
+      };
+
+      const performUserSearch = async (term) => {
+        if (!searchResults) {
+          return;
+        }
+        if (term.length < 2) {
+          searchResults.innerHTML = '<div class="text-secondary small">Keep typing to search...</div>';
+          return;
+        }
+        searchResults.innerHTML = '<div class="text-secondary small">Searching...</div>';
+        try {
+          const response = await fetch(`api/search_users.php?q=${encodeURIComponent(term)}`);
+          const data = await response.json();
+          if (data.success) {
+            renderUserSearchResults(data.users);
+          } else {
+            searchResults.innerHTML = `<div class="text-danger small">${escapeHtml(data.message || 'Unable to search right now.')}</div>`;
+          }
+        } catch (error) {
+          searchResults.innerHTML = '<div class="text-danger small">Unable to search right now.</div>';
+        }
+      };
+
+      const handleFollowToggle = async (button) => {
+        const userId = button.dataset.userId;
+        if (!userId) {
+          return;
+        }
+        const formData = new URLSearchParams();
+        formData.append('target_user_id', userId);
+        button.disabled = true;
+        try {
+          const response = await fetch('api/toggle_follow.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData.toString()
+          });
+          const data = await response.json();
+          if (data.success) {
+            const isFollowing = data.is_following ? '1' : '0';
+            button.dataset.following = isFollowing;
+            button.textContent = data.is_following ? 'Following' : 'Follow';
+            button.classList.toggle('btn-outline-primary', !data.is_following);
+            button.classList.toggle('btn-outline-light', !!data.is_following);
+          } else if (data.message) {
+            alert(data.message);
+          }
+        } catch (error) {
+          console.error(error);
+        } finally {
+          button.disabled = false;
+        }
+      };
+
       feed?.addEventListener('click', (event) => {
         const likeBtn = event.target.closest('.like-toggle');
         if (likeBtn) {
@@ -408,6 +556,13 @@ if ($post_stmt) {
         if (commentToggle) {
           event.preventDefault();
           toggleCommentsPanel(commentToggle);
+          return;
+        }
+
+        const followBtn = event.target.closest('.follow-toggle');
+        if (followBtn) {
+          event.preventDefault();
+          handleFollowToggle(followBtn);
         }
       });
 
@@ -417,6 +572,26 @@ if ($post_stmt) {
           handleCommentSubmit(form);
         });
       });
+
+      if (searchInput) {
+        searchInput.addEventListener('input', () => {
+          const term = searchInput.value.trim();
+          clearTimeout(searchTimer);
+          if (term === '') {
+            if (searchResults) {
+              searchResults.innerHTML = '<div class="text-secondary small">Start typing to search for people.</div>';
+            }
+            return;
+          }
+          if (term.length < 2) {
+            if (searchResults) {
+              searchResults.innerHTML = '<div class="text-secondary small">Keep typing to search...</div>';
+            }
+            return;
+          }
+          searchTimer = setTimeout(() => performUserSearch(term), 250);
+        });
+      }
     });
 
     function escapeHtml(text) {

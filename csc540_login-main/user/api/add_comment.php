@@ -1,12 +1,10 @@
 <?php
-require_once(realpath(dirname(__FILE__) . '/../../php/session.php'));
-require_once(realpath(dirname(__FILE__) . '/../../php/config.php'));
-require_once(realpath(dirname(__FILE__) . '/../../php/path.php'));
+require_once(realpath(dirname(__FILE__) . '/../../php/api_auth.php'));
 require_once(realpath(dirname(__FILE__) . '/../../php/post_interactions.php'));
 
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['user_id'])) {
+if (!api_ensure_authenticated_user($db_connection)) {
     echo json_encode(['success' => false, 'message' => 'Not authenticated.']);
     exit();
 }
@@ -32,16 +30,38 @@ if (!ensure_comments_table($db_connection)) {
 }
 
 $user_id = (int)$_SESSION['user_id'];
+$column_info = get_comments_column_info($db_connection);
+$user_columns = $column_info['user_columns'];
+$text_columns = $column_info['text_columns'];
+
+if (empty($user_columns)) {
+    echo json_encode(['success' => false, 'message' => 'Comments table is missing a user column.']);
+    exit();
+}
+if (empty($text_columns)) {
+    echo json_encode(['success' => false, 'message' => 'Comments table is missing a text column.']);
+    exit();
+}
+
+$columns = array_merge(['post_id'], $user_columns, $text_columns);
+$placeholders = implode(', ', array_fill(0, count($columns), '?'));
+$column_list = implode(', ', array_map(fn($col) => "`{$col}`", $columns));
+$types = str_repeat('i', 1 + count($user_columns)) . str_repeat('s', count($text_columns));
+$params = array_merge(
+    [$post_id],
+    array_fill(0, count($user_columns), $user_id),
+    array_fill(0, count($text_columns), $comment_text)
+);
 
 $insert_stmt = $db_connection->prepare("
-    INSERT INTO comments (post_id, user_id, comment_text)
-    VALUES (?, ?, ?)
+    INSERT INTO comments ({$column_list})
+    VALUES ({$placeholders})
 ");
 if (!$insert_stmt) {
     echo json_encode(['success' => false, 'message' => 'Failed to prepare insert.']);
     exit();
 }
-$insert_stmt->bind_param("iis", $post_id, $user_id, $comment_text);
+$insert_stmt->bind_param($types, ...$params);
 $insert_stmt->execute();
 $comment_id = $insert_stmt->insert_id;
 $insert_stmt->close();
